@@ -6,7 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator'
 import { TenantId } from '../auth/decorators/user.decorator'
 import { MetricsService } from './metrics.service'
 
-@Controller('api/v1/metrics')
+@Controller('metrics')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class MetricsController {
   constructor(private readonly metricsService: MetricsService) {}

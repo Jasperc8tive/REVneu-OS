@@ -7,7 +7,9 @@ export class AgentRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createRun(dto: CreateAgentRunDto) {
-    return this.prisma.agentRun.create({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prisma = this.prisma as any
+    return prisma.agentRun.create({
       data: {
         ...(dto.id ? { id: dto.id } : {}),
         organizationId: dto.organizationId,
@@ -26,7 +28,9 @@ export class AgentRunsService {
   }
 
   async listRuns(organizationId: string, agentId?: string) {
-    return this.prisma.agentRun.findMany({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prisma = this.prisma as any
+    return prisma.agentRun.findMany({
       where: {
         organizationId,
         ...(agentId ? { agentId } : {}),

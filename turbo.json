@@ -6,6 +6,10 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
+    "@revneu/api#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "tsconfig.build.tsbuildinfo"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

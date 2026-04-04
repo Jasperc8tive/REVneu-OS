@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { BullModule } from '@nestjs/bullmq'
 import { ConfigModule } from '@nestjs/config'
+import { EventEmitterModule } from '@nestjs/event-emitter'
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { DatabaseModule } from '@revneu/database'
 import { ApiKeysModule } from './api-keys/api-keys.module'
@@ -33,6 +34,7 @@ import { WorkersModule } from './workers/workers.module'
         port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
       },
     }),
+    EventEmitterModule.forRoot(),
     DatabaseModule,
     AuthModule,
     CommonModule,

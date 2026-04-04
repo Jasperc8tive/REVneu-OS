@@ -14,7 +14,7 @@ import { Roles } from '../auth/decorators/roles.decorator'
 import { User, TenantId } from '../auth/decorators/user.decorator'
 import type { JwtPayload } from '../auth/strategies/jwt.strategy'
 
-@Controller('api/v1/api-keys')
+@Controller('api-keys')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ApiKeysController {
   constructor(private apiKeysService: ApiKeysService) {}

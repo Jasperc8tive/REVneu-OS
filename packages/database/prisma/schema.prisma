@@ -120,6 +120,7 @@ model Organization {
   metricRecords          MetricRecord[]
   agentRuns              AgentRun[]
   recommendations        Recommendation[]
+  agentSchedules         AgentSchedule[]
 
   @@map("organizations")
 }
@@ -200,19 +201,19 @@ model AuditLog {
 
 model IntegrationConnection {
   id                   String              @id @default(cuid())
-  organizationId       String
+  organizationId       String              @map("organization_id")
   source               IntegrationSource
-  authType             IntegrationAuthType
-  displayName          String
-  encryptedCredentials String
+  authType             IntegrationAuthType @map("auth_type")
+  displayName          String              @map("display_name")
+  encryptedCredentials String              @map("encrypted_credentials")
   status               IntegrationStatus   @default(ACTIVE)
-  syncIntervalMinutes  Int                 @default(60)
-  lastSyncAt           DateTime?
-  errorCount           Int                 @default(0)
-  healthScore          Int                 @default(100)
-  createdByUserId      String?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  syncIntervalMinutes  Int                 @default(60) @map("sync_interval_minutes")
+  lastSyncAt           DateTime?           @map("last_sync_at")
+  errorCount           Int                 @default(0) @map("error_count")
+  healthScore          Int                 @default(100) @map("health_score")
+  createdByUserId      String?             @map("created_by_user_id")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   syncRuns     IntegrationSyncRun[]
@@ -226,16 +227,16 @@ model IntegrationConnection {
 
 model IntegrationSyncRun {
   id             String       @id @default(cuid())
-  organizationId String
-  integrationId  String
+  organizationId String       @map("organization_id")
+  integrationId  String       @map("integration_id")
   status         SyncRunStatus @default(QUEUED)
-  startedAt      DateTime      @default(now())
-  finishedAt     DateTime?
-  retryCount     Int           @default(0)
-  nextRetryAt    DateTime?
-  recordsIngested Int          @default(0)
-  errorMessage   String?
-  createdAt      DateTime      @default(now())
+  startedAt      DateTime      @default(now()) @map("started_at")
+  finishedAt     DateTime?     @map("finished_at")
+  retryCount     Int           @default(0) @map("retry_count")
+  nextRetryAt    DateTime?     @map("next_retry_at")
+  recordsIngested Int          @default(0) @map("records_ingested")
+  errorMessage   String?       @map("error_message")
+  createdAt      DateTime      @default(now()) @map("created_at")
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   integration  IntegrationConnection @relation(fields: [integrationId], references: [id], onDelete: Cascade)
@@ -247,18 +248,18 @@ model IntegrationSyncRun {
 
 model MetricRecord {
   id             String            @id @default(cuid())
-  organizationId String
-  integrationId  String?
+  organizationId String            @map("organization_id")
+  integrationId  String?           @map("integration_id")
   source         IntegrationSource
-  metricType     MetricType
+  metricType     MetricType        @map("metric_type")
   dimension      String
   value          Float
   currency       String            @default("NGN")
-  recordedAt     DateTime
-  periodStart    DateTime
-  periodEnd      DateTime
-  rawPayload     Json?
-  createdAt      DateTime          @default(now())
+  recordedAt     DateTime          @map("recorded_at")
+  periodStart    DateTime          @map("period_start")
+  periodEnd      DateTime          @map("period_end")
+  rawPayload     Json?             @map("raw_payload")
+  createdAt      DateTime          @default(now()) @map("created_at")
 
   organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   integration  IntegrationConnection? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
@@ -270,19 +271,19 @@ model MetricRecord {
 
 model AgentRun {
   id             String        @id @default(cuid())
-  organizationId String
-  agentId        String
+  organizationId String        @map("organization_id")
+  agentId        String        @map("agent_id")
   period         String
   status         AgentRunStatus @default(RUNNING)
-  startedAt      DateTime       @default(now())
-  finishedAt     DateTime?
-  durationMs     Int?
-  tokensUsed     Int            @default(0)
-  tokenCostUsd   Float          @default(0)
+  startedAt      DateTime       @default(now()) @map("started_at")
+  finishedAt     DateTime?      @map("finished_at")
+  durationMs     Int?           @map("duration_ms")
+  tokensUsed     Int            @default(0) @map("tokens_used")
+  tokenCostUsd   Float          @default(0) @map("token_cost_usd")
   error          String?
   metadata       Json?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
 
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   recommendations Recommendation[]
@@ -294,12 +295,12 @@ model AgentRun {
 
 model Recommendation {
   id             String   @id @default(cuid())
-  organizationId String
-  agentRunId     String
-  agentId        String
+  organizationId String   @map("organization_id")
+  agentRunId     String   @map("agent_run_id")
+  agentId        String   @map("agent_id")
   summary        String?
   findings       Json
-  createdAt      DateTime @default(now())
+  createdAt      DateTime @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   agentRun     AgentRun     @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
@@ -308,4 +309,22 @@ model Recommendation {
   @@index([organizationId, agentId])
   @@index([agentRunId])
   @@map("recommendations")
+}
+
+model AgentSchedule {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  cadenceMinutes Int           @default(60) @map("cadence_minutes")
+  isEnabled      Boolean       @default(true) @map("is_enabled")
+  lastTriggeredAt DateTime?    @map("last_triggered_at")
+  lastRunStatus  AgentRunStatus? @map("last_run_status")
+  lastError      String?       @map("last_error")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId])
+  @@index([isEnabled, cadenceMinutes])
+  @@map("agent_schedules")
 }

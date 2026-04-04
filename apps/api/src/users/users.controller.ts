@@ -17,7 +17,7 @@ import type { JwtPayload } from '../auth/strategies/jwt.strategy'
 
 type UserRole = 'OWNER' | 'ADMIN' | 'ANALYST' | 'VIEWER'
 
-@Controller('api/v1/users')
+@Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private usersService: UsersService) {}

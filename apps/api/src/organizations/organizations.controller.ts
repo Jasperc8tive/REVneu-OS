@@ -11,7 +11,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { User, TenantId } from '../auth/decorators/user.decorator'
 import type { JwtPayload } from '../auth/strategies/jwt.strategy'
 
-@Controller('api/v1/organizations')
+@Controller('organizations')
 export class OrganizationsController {
   constructor(private organizationsService: OrganizationsService) {}
 

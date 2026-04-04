@@ -122,3 +122,9 @@ class AgentRuntime:
         if agent_id:
             scoped = [item for item in scoped if item.agent_id == agent_id]
         return scoped
+
+    def get_persistence_telemetry(self) -> dict:
+        return self._persistence.telemetry_snapshot()
+
+    def get_persistence_dead_letters(self) -> list[dict]:
+        return self._persistence.get_dead_letters()

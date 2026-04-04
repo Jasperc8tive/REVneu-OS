@@ -7,7 +7,7 @@ import { InternalAgentGuard } from '../common/guards/internal-agent.guard'
 import { AgentRunsService } from './agent-runs.service'
 import { CreateAgentRunDto } from './dto/create-agent-run.dto'
 
-@Controller(['agent-runs', 'api/v1/agent-runs'])
+@Controller('agent-runs')
 export class AgentRunsController {
   constructor(private readonly agentRunsService: AgentRunsService) {}
 
@@ -18,7 +18,7 @@ export class AgentRunsController {
     return this.agentRunsService.listRuns(tenantId, agentId)
   }
 
-  @Get(['internal', 'api/v1/internal'])
+  @Get('internal')
   @UseGuards(InternalAgentGuard)
   async listRunsInternal(
     @Query('organizationId') organizationId: string,
@@ -27,7 +27,7 @@ export class AgentRunsController {
     return this.agentRunsService.listRuns(organizationId, agentId)
   }
 
-  @Post(['internal', 'api/v1/internal'])
+  @Post('internal')
   @UseGuards(InternalAgentGuard)
   async createRunInternal(@Body() dto: CreateAgentRunDto) {
     return this.agentRunsService.createRun(dto)

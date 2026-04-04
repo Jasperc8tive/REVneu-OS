@@ -10,7 +10,7 @@ import type { Request } from 'express'
 import { AuthService, AuthResponse, LoginDto, RefreshTokenDto, RegisterDto } from './services/auth.service'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 
-@Controller('api/v1/auth')
+@Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 

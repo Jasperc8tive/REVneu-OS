@@ -20,7 +20,7 @@ import type { JwtPayload } from '../auth/strategies/jwt.strategy'
 import { CreateIntegrationDto } from './dto/create-integration.dto'
 import { IntegrationsService } from './integrations.service'
 
-@Controller(['integrations', 'api/v1/integrations'])
+@Controller('integrations')
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
 

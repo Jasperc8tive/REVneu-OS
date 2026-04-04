@@ -29,6 +29,9 @@ describe('IntegrationWebhooksController (runtime checks)', () => {
     }).compile()
 
     app = moduleRef.createNestApplication()
+    app.setGlobalPrefix('api/v1', {
+      exclude: ['health'],
+    })
     await app.init()
   })
 

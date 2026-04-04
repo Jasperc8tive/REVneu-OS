@@ -5,6 +5,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import router
 
+
+def validate_internal_agent_key() -> None:
+    if os.getenv("ENVIRONMENT", "development") != "production":
+        return
+
+    key = os.getenv("AGENT_API_KEY", "")
+    unsafe = (not key) or (len(key.strip()) < 24) or ("change-me" in key.lower())
+    if unsafe:
+        raise RuntimeError("AGENT_API_KEY must be set to a strong non-default value in production")
+
+
+validate_internal_agent_key()
+
 app = FastAPI(
     title="Revneu OS — Agent Service",
     description="AI growth agent microservices for Nigerian businesses",

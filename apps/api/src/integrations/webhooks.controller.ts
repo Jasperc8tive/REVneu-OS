@@ -11,7 +11,7 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import type { Request } from 'express'
 import Stripe from 'stripe'
 
-@Controller(['integrations/webhooks', 'api/v1/integrations/webhooks'])
+@Controller('integrations/webhooks')
 export class IntegrationWebhooksController {
   @Post('paystack')
   @HttpCode(200)

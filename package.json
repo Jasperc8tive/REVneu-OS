@@ -11,6 +11,7 @@
   ],
   "scripts": {
     "build": "turbo build",
+    "bootstrap:local": "powershell -ExecutionPolicy Bypass -File ./scripts/bootstrap-local.ps1",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "test": "turbo test",

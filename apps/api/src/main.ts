@@ -2,7 +2,21 @@ import { NestFactory } from '@nestjs/core'
 import { ValidationPipe } from '@nestjs/common'
 import { AppModule } from './app.module'
 
+function validateInternalAgentKey(): void {
+  if ((process.env.NODE_ENV ?? 'development') !== 'production') {
+    return
+  }
+
+  const key = process.env.AGENT_API_KEY
+  const isUnsafe = !key || key.trim().length < 24 || key.toLowerCase().includes('change-me')
+  if (isUnsafe) {
+    throw new Error('AGENT_API_KEY must be set to a strong non-default value in production')
+  }
+}
+
 async function bootstrap(): Promise<void> {
+  validateInternalAgentKey()
+
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   })

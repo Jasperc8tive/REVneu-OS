@@ -7,7 +7,7 @@ import { InternalAgentGuard } from '../common/guards/internal-agent.guard'
 import { CreateRecommendationDto } from './dto/create-recommendation.dto'
 import { RecommendationsService } from './recommendations.service'
 
-@Controller(['recommendations', 'api/v1/recommendations'])
+@Controller('recommendations')
 export class RecommendationsController {
   constructor(private readonly recommendationsService: RecommendationsService) {}
 
@@ -18,7 +18,7 @@ export class RecommendationsController {
     return this.recommendationsService.listRecommendations(tenantId, agentId)
   }
 
-  @Get(['internal', 'api/v1/internal'])
+  @Get('internal')
   @UseGuards(InternalAgentGuard)
   async listRecommendationsInternal(
     @Query('organizationId') organizationId: string,
@@ -27,7 +27,7 @@ export class RecommendationsController {
     return this.recommendationsService.listRecommendations(organizationId, agentId)
   }
 
-  @Post(['internal', 'api/v1/internal'])
+  @Post('internal')
   @UseGuards(InternalAgentGuard)
   async createRecommendationInternal(@Body() dto: CreateRecommendationDto) {
     return this.recommendationsService.createRecommendation(dto)
