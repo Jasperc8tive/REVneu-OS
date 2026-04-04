@@ -1,0 +1,7 @@
+{
+    "deepscan.enable": true,
+    "json.schemaDownload.enable": false,
+    "files.associations": {
+        "**/packages/database/prisma/migrations/**/*.sql": "plaintext"
+    }
+}

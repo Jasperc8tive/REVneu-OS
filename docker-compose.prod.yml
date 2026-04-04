@@ -1,0 +1,36 @@
+version: '3.9'
+
+# Production overrides — run with:
+# docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}
+    volumes:
+      - /data/revneu/postgres:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    volumes:
+      - /data/revneu/redis:/data
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required in production}
+
+  api:
+    environment:
+      NODE_ENV: production
+    restart: always
+
+  agents:
+    environment:
+      ENVIRONMENT: production
+    restart: always
+
+  web:
+    environment:
+      NODE_ENV: production
+    restart: always
+
+  nginx:
+    restart: always

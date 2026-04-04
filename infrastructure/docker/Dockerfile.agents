@@ -1,0 +1,28 @@
+# ─── Revneu OS — Agents (Python FastAPI) Dockerfile ──────────────────────────
+
+FROM python:3.11-slim AS base
+WORKDIR /app
+
+# Prevent Python from writing .pyc files
+ENV PYTHONDONTWRITEBYTECODE=1
+# Prevent Python from buffering stdout/stderr
+ENV PYTHONUNBUFFERED=1
+
+# ── Install dependencies ──────────────────────────────────────────────────────
+FROM base AS deps
+COPY apps/agents/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# ── Development ───────────────────────────────────────────────────────────────
+FROM deps AS development
+COPY apps/agents/ .
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# ── Production ────────────────────────────────────────────────────────────────
+FROM deps AS production
+COPY apps/agents/ .
+EXPOSE 8000
+# Multiple workers for production
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
