@@ -16,6 +16,8 @@ import { IntegrationsModule } from './integrations/integrations.module'
 import { MetricsModule } from './metrics/metrics.module'
 import { OrganizationsModule } from './organizations/organizations.module'
 import { PipelineModule } from './pipeline/pipeline.module'
+import { AgentRunsModule } from './agent-runs/agent-runs.module'
+import { RecommendationsModule } from './recommendations/recommendations.module'
 import { UsersModule } from './users/users.module'
 import { WorkersModule } from './workers/workers.module'
 
@@ -41,6 +43,8 @@ import { WorkersModule } from './workers/workers.module'
     ConnectorsModule,
     MetricsModule,
     PipelineModule,
+    AgentRunsModule,
+    RecommendationsModule,
     WorkersModule,
   ],
   controllers: [AppController],

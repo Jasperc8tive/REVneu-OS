@@ -91,6 +91,13 @@ enum MetricType {
   LTV
 }
 
+enum AgentRunStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
 // ─── CORE MODELS ─────────────────────────────────────────────────────────────
 
 model Organization {
@@ -111,6 +118,8 @@ model Organization {
   integrationConnections IntegrationConnection[]
   integrationSyncRuns    IntegrationSyncRun[]
   metricRecords          MetricRecord[]
+  agentRuns              AgentRun[]
+  recommendations        Recommendation[]
 
   @@map("organizations")
 }
@@ -257,4 +266,46 @@ model MetricRecord {
   @@index([organizationId, source, metricType, recordedAt])
   @@index([integrationId, recordedAt])
   @@map("metric_records")
+}
+
+model AgentRun {
+  id             String        @id @default(cuid())
+  organizationId String
+  agentId        String
+  period         String
+  status         AgentRunStatus @default(RUNNING)
+  startedAt      DateTime       @default(now())
+  finishedAt     DateTime?
+  durationMs     Int?
+  tokensUsed     Int            @default(0)
+  tokenCostUsd   Float          @default(0)
+  error          String?
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, agentId, status])
+  @@map("agent_runs")
+}
+
+model Recommendation {
+  id             String   @id @default(cuid())
+  organizationId String
+  agentRunId     String
+  agentId        String
+  summary        String?
+  findings       Json
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentRun     AgentRun     @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, agentId])
+  @@index([agentRunId])
+  @@map("recommendations")
 }
