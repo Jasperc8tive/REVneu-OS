@@ -8,14 +8,19 @@ describe('AgentRunsService', () => {
     },
   }
 
+  const billingServiceMock = {
+    assertWithinLimit: jest.fn(),
+  }
+
   let service: AgentRunsService
 
   beforeEach(() => {
     jest.clearAllMocks()
-    service = new AgentRunsService(prismaMock as never)
+    service = new AgentRunsService(prismaMock as never, billingServiceMock as never)
   })
 
   it('creates an agent run record', async () => {
+    prismaMock.agentRun.findMany.mockResolvedValue([{ agentId: 'marketing_performance' }])
     prismaMock.agentRun.create.mockResolvedValue({ id: 'run-1' })
 
     await service.createRun({

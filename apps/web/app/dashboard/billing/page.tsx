@@ -19,13 +19,28 @@ type Subscription = {
   organizationId: string
   planId: string
   planName: string
-  status: 'ACTIVE' | 'INACTIVE' | 'PAST_DUE' | 'CANCELED'
+  status: 'ACTIVE' | 'INACTIVE' | 'PAST_DUE' | 'CANCELED' | 'TRIAL'
   currentPeriodStart: string
   currentPeriodEnd: string
   billedAt?: string | null
   nextBillingDate?: string | null
   amountPaid: number
   currency: string
+}
+
+type UsageSummary = {
+  tier: string
+  status: string
+  limits: {
+    maxUsers: number
+    maxIntegrations: number
+    maxAgents: number
+  }
+  usage: {
+    users: number
+    integrations: number
+    agents: number
+  }
 }
 
 type Invoice = {
@@ -78,8 +93,10 @@ export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [plans, setPlans] = useState<BillingPlan[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
 
   useEffect(() => {
     if (!accessToken) {
@@ -94,10 +111,11 @@ export default function BillingPage() {
       setLoading(true)
       setError('')
       try {
-        const [subRes, plansRes, invoicesRes] = await Promise.all([
+        const [subRes, plansRes, invoicesRes, usageRes] = await Promise.all([
           fetch(`${apiBase}/api/v1/billing/subscription`, { headers }),
           fetch(`${apiBase}/api/v1/billing/plans`, { headers }),
           fetch(`${apiBase}/api/v1/billing/invoices`, { headers }),
+          fetch(`${apiBase}/api/v1/billing/usage`, { headers }),
         ])
 
         if (!subRes.ok && subRes.status !== 404) {
@@ -124,6 +142,15 @@ export default function BillingPage() {
           const invoicesList = asList<Invoice>(invoicesPayload)
           setInvoices(invoicesList)
         }
+
+        if (usageRes.ok) {
+          const usagePayload = await usageRes.json()
+          const usageData =
+            usagePayload && typeof usagePayload === 'object' && 'data' in usagePayload
+              ? ((usagePayload as { data?: UsageSummary | null }).data ?? null)
+              : (usagePayload as UsageSummary)
+          setUsage(usageData)
+        }
       } catch {
         setError('Unable to load billing data right now.')
       } finally {
@@ -133,6 +160,50 @@ export default function BillingPage() {
 
     void loadBillingData()
   }, [accessToken, apiBase])
+
+  async function startCheckout(planId: string, provider: 'paystack' | 'stripe') {
+    if (!accessToken || !session?.user?.email) {
+      setError('Missing user session for checkout.')
+      return
+    }
+
+    setCheckoutLoading(`${provider}:${planId}`)
+    setError('')
+
+    try {
+      const response = await fetch(`${apiBase}/api/v1/billing/checkout/${provider}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planId,
+          email: session.user.email,
+          callbackUrl: `${window.location.origin}/dashboard/billing`,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Checkout initialization failed')
+      }
+
+      const payload = await response.json()
+      const data = payload && typeof payload === 'object' && 'data' in payload
+        ? (payload as { data?: { checkoutUrl?: string } }).data
+        : (payload as { checkoutUrl?: string })
+
+      if (!data?.checkoutUrl) {
+        throw new Error('Checkout URL missing')
+      }
+
+      window.location.href = data.checkoutUrl
+    } catch {
+      setError('Unable to start checkout right now. Please try again.')
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -184,6 +255,16 @@ export default function BillingPage() {
             <h2 className="text-lg font-semibold text-slate-900 mb-4">
               Available Plans
             </h2>
+            {usage ? (
+              <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+                <p>
+                  Current tier: <strong>{usage.tier}</strong> ({usage.status})
+                </p>
+                <p className="mt-1">
+                  Usage: {usage.usage.users}/{usage.limits.maxUsers} users, {usage.usage.integrations}/{usage.limits.maxIntegrations} integrations, {usage.usage.agents}/{usage.limits.maxAgents} agents
+                </p>
+              </div>
+            ) : null}
             {plans.length === 0 ? (
               <p className="text-sm text-slate-600">
                 Plan information not available.
@@ -220,6 +301,24 @@ export default function BillingPage() {
                         {plan.description}
                       </p>
                     ) : null}
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void startCheckout(plan.id, 'paystack')}
+                        disabled={checkoutLoading !== null}
+                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        {checkoutLoading === `paystack:${plan.id}` ? 'Starting...' : 'Paystack'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void startCheckout(plan.id, 'stripe')}
+                        disabled={checkoutLoading !== null}
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                      >
+                        {checkoutLoading === `stripe:${plan.id}` ? 'Starting...' : 'Stripe'}
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

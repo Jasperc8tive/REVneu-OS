@@ -63,11 +63,15 @@ export class AuthService {
       throw new BadRequestException('Organization slug already exists')
     }
 
-    // Create organization (tenant)
+    // Create organization (tenant) – activate 14-day Growth trial immediately
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const organization = await this.prisma.organization.create({
       data: {
         name: dto.organizationName,
         slug: dto.organizationSlug,
+        subscriptionTier: 'GROWTH',
+        subscriptionStatus: 'TRIAL',
+        trialEndsAt,
       },
     })
 

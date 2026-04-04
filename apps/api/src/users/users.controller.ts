@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Controller,
   Get,
+  Post,
   Put,
   Delete,
   Body,
@@ -14,6 +15,7 @@ import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { User, TenantId } from '../auth/decorators/user.decorator'
 import type { JwtPayload } from '../auth/strategies/jwt.strategy'
+import { InviteUserDto } from './dto/invite-user.dto'
 
 type UserRole = 'OWNER' | 'ADMIN' | 'ANALYST' | 'VIEWER'
 
@@ -26,6 +28,16 @@ export class UsersController {
   @Roles(['OWNER', 'ADMIN'])
   getTeam(@TenantId() tenantId: string) {
     return this.usersService.getTeamMembers(tenantId)
+  }
+
+  @Post('invite')
+  @Roles(['OWNER', 'ADMIN'])
+  inviteUser(
+    @TenantId() tenantId: string,
+    @User() user: JwtPayload,
+    @Body() dto: InviteUserDto,
+  ) {
+    return this.usersService.inviteUser(tenantId, user.sub, dto)
   }
 
   @Get(':id')
