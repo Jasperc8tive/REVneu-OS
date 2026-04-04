@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const protectedRoutes = ['/dashboard', '/settings', '/team']
-const publicRoutes = ['/login', '/register']
+const publicRoutes = ['/login', '/register', '/auth/login', '/auth/register']
 const sessionCookieNames = [
   'next-auth.session-token',
   '__Secure-next-auth.session-token',
@@ -13,7 +13,7 @@ export function middleware(request: NextRequest) {
 
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route))
   if (isProtectedRoute && !hasSession) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
