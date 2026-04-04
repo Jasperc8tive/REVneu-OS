@@ -69,9 +69,9 @@ Use **Turborepo** for orchestration across apps.
 ### Stage 1 Audit Checklist
 - [ ] `docker-compose up` runs all services without errors
 - [ ] All three apps start on their designated ports (3000, 4000, 8000)
-- [ ] PostgreSQL migrates clean with `prisma migrate dev`
-- [ ] No TypeScript errors across monorepo
-- [ ] ESLint passes on all files
+- [x] PostgreSQL migrates clean with `prisma migrate dev`
+- [x] No TypeScript errors across monorepo
+- [x] ESLint passes on all files
 - [ ] CI pipeline runs green on push
 
 ---
