@@ -13,8 +13,11 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { RateLimitGuard } from './common/guards/rate-limit.guard'
 import { ApiResponseInterceptor } from './common/interceptors/api-response.interceptor'
 import { ConnectorsModule } from './connectors/connectors.module'
+import { BillingModule } from './billing/billing.module'
+import { ForecastsModule } from './forecasts/forecasts.module'
 import { IntegrationsModule } from './integrations/integrations.module'
 import { MetricsModule } from './metrics/metrics.module'
+import { OnboardingModule } from './onboarding/onboarding.module'
 import { OrganizationsModule } from './organizations/organizations.module'
 import { PipelineModule } from './pipeline/pipeline.module'
 import { AgentRunsModule } from './agent-runs/agent-runs.module'
@@ -43,7 +46,10 @@ import { WorkersModule } from './workers/workers.module'
     ApiKeysModule,
     IntegrationsModule,
     ConnectorsModule,
+    BillingModule,
+    ForecastsModule,
     MetricsModule,
+    OnboardingModule,
     PipelineModule,
     AgentRunsModule,
     RecommendationsModule,

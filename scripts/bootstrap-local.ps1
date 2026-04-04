@@ -48,7 +48,7 @@ function Wait-HttpOk {
   throw "Timed out waiting for $Url"
 }
 
-function Ensure-Postgres {
+function Initialize-Postgres {
   if (!(Test-Path (Join-Path $postgresBin 'pg_ctl.exe'))) {
     throw 'PostgreSQL binaries not found. Extract the PostgreSQL archive to %LOCALAPPDATA%\\Programs\\PostgreSQL17 first.'
   }
@@ -77,7 +77,7 @@ function Ensure-Postgres {
   }
 }
 
-function Ensure-Memurai {
+function Initialize-Memurai {
   if (!(Test-Path $memuraiExe)) {
     throw 'Memurai binary not found. Extract Memurai to %LOCALAPPDATA%\\Programs\\MemuraiExtract first.'
   }
@@ -124,8 +124,8 @@ function Start-Api {
   }
 }
 
-Ensure-Postgres
-Ensure-Memurai
+Initialize-Postgres
+Initialize-Memurai
 Start-Agents
 Start-Api
 
