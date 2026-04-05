@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core'
 import { ValidationPipe } from '@nestjs/common'
+import type { NextFunction, Request, Response } from 'express'
 import { AppModule } from './app.module'
 
 function validateInternalAgentKey(): void {
@@ -24,6 +25,35 @@ async function bootstrap(): Promise<void> {
   // Global prefix — excludes health endpoint for Docker health checks
   app.setGlobalPrefix('api/v1', {
     exclude: ['health'],
+  })
+
+  // Trust reverse proxies (nginx/load balancers) for protocol detection.
+  const httpApp = app.getHttpAdapter().getInstance()
+  httpApp.set('trust proxy', true)
+
+  // Enforce HTTPS for non-local hosts when enabled.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const enforceHttps = (process.env.ENFORCE_HTTPS ?? 'true').toLowerCase() === 'true'
+    if (!enforceHttps) {
+      return next()
+    }
+
+    const host = req.headers.host ?? ''
+    const isLocalHost = /(^localhost(:\d+)?$)|(^127\.0\.0\.1(:\d+)?$)/i.test(host)
+    if (isLocalHost) {
+      return next()
+    }
+
+    const forwardedProto = (req.headers['x-forwarded-proto'] as string | undefined)
+      ?.split(',')[0]
+      ?.trim()
+
+    const isSecure = req.secure || forwardedProto === 'https'
+    if (isSecure) {
+      return next()
+    }
+
+    return res.redirect(301, `https://${host}${req.originalUrl}`)
   })
 
   // Strict input validation

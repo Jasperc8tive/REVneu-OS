@@ -24,18 +24,6 @@ type TierLimits = {
 
 type FeatureName = 'users' | 'integrations' | 'agents'
 
-type BillingInvoiceRow = {
-  id: string
-  organization_id: string
-  provider: string
-  provider_reference: string | null
-  amount_minor: number
-  currency: string
-  status: string
-  issued_at: Date
-  paid_at: Date | null
-}
-
 const TIER_LIMITS: Record<string, TierLimits> = {
   TRIAL: { maxUsers: 10, maxIntegrations: 6, maxAgents: 5 },
   STARTER: { maxUsers: 3, maxIntegrations: 2, maxAgents: 2 },
@@ -58,10 +46,6 @@ const STRIPE_TOLERANCE_SECONDS = 300
 
 @Injectable()
 export class BillingService {
-  private billingTablesReady = false
-  private graceTablesReady = false
-  private apiUsageTablesReady = false
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
@@ -138,12 +122,10 @@ export class BillingService {
   }
 
   async getUsage(organizationId: string) {
-    await this.ensureApiUsageTable()
-
     const windowDays = 30
     const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
 
-    const [users, integrations, activeAgents, agentRunsWindow, apiCallsWindowRows] = await Promise.all([
+    const [users, integrations, activeAgents, agentRunsWindow, apiCallsWindow] = await Promise.all([
       this.prisma.user.count({ where: { organizationId } }),
       this.prisma.integrationConnection.count({
         where: { organizationId, status: { not: 'DISCONNECTED' } },
@@ -159,15 +141,13 @@ export class BillingService {
           startedAt: { gte: windowStart },
         },
       }),
-      this.prisma.$queryRaw<Array<{ count: bigint | number }>>`
-        SELECT COUNT(*)::bigint AS count
-        FROM api_usage_events
-        WHERE organization_id = ${organizationId}
-          AND created_at >= ${windowStart}
-      `,
+      this.prisma.apiUsageEvent.count({
+        where: {
+          organizationId,
+          createdAt: { gte: windowStart },
+        },
+      }),
     ])
-
-    const apiCallsWindow = Number(apiCallsWindowRows[0]?.count ?? 0)
 
     return {
       users,
@@ -240,8 +220,6 @@ export class BillingService {
     organizationId: string,
     dto: { planId: string; email: string; callbackUrl?: string },
   ) {
-    await this.ensureBillingTables()
-
     const plan = this.getPlans().find((item) => item.id === dto.planId)
     if (!plan) {
       throw new BadRequestException('Invalid plan')
@@ -319,8 +297,6 @@ export class BillingService {
     organizationId: string,
     dto: { planId: string; email: string; callbackUrl?: string },
   ) {
-    await this.ensureBillingTables()
-
     const plan = this.getPlans().find((item) => item.id === dto.planId)
     if (!plan) {
       throw new BadRequestException('Invalid plan')
@@ -398,8 +374,6 @@ export class BillingService {
   }
 
   async handlePaystackWebhook(rawBody: Buffer | string, signature?: string) {
-    await this.ensureBillingTables()
-
     const secretKey = process.env.PAYSTACK_SECRET_KEY
     const bodyString =
       typeof rawBody === 'string' ? rawBody : rawBody.toString('utf8')
@@ -469,8 +443,6 @@ export class BillingService {
   }
 
   async handleStripeWebhook(rawBody: Buffer | string, signature?: string) {
-    await this.ensureBillingTables()
-
     const secretKey = process.env.STRIPE_SECRET_KEY
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
     const bodyString =
@@ -625,8 +597,6 @@ export class BillingService {
     provider: 'stripe' | 'paystack',
     providerReference: string | null,
   ): Promise<void> {
-    await this.ensureGraceTable()
-
     const GRACE_DAYS = 7
     const graceEndsAt = new Date(Date.now() + GRACE_DAYS * 24 * 60 * 60 * 1000)
 
@@ -635,29 +605,23 @@ export class BillingService {
       data: { subscriptionStatus: 'PAST_DUE' },
     })
 
-    await this.prisma.$executeRaw`
-      INSERT INTO billing_grace_periods (
-        id,
-        organization_id,
+    await this.prisma.billingGracePeriod.upsert({
+      where: { organizationId },
+      create: {
+        id: randomUUID(),
+        organizationId,
         provider,
-        provider_reference,
-        grace_ends_at,
-        is_active
-      ) VALUES (
-        ${randomUUID()},
-        ${organizationId},
-        ${provider},
-        ${providerReference},
-        ${graceEndsAt},
-        TRUE
-      )
-      ON CONFLICT (organization_id)
-      DO UPDATE SET
-        grace_ends_at = EXCLUDED.grace_ends_at,
-        is_active = TRUE,
-        provider = EXCLUDED.provider,
-        provider_reference = EXCLUDED.provider_reference
-    `
+        providerReference,
+        graceEndsAt,
+        isActive: true,
+      },
+      update: {
+        provider,
+        providerReference,
+        graceEndsAt,
+        isActive: true,
+      },
+    })
 
     await this.prisma.auditLog.create({
       data: {
@@ -677,71 +641,15 @@ export class BillingService {
     })
   }
 
-  private async ensureGraceTable(): Promise<void> {
-    if (this.graceTablesReady) {
-      return
-    }
-
-    await this.prisma.$executeRaw`
-      CREATE TABLE IF NOT EXISTS billing_grace_periods (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL UNIQUE,
-        provider TEXT NOT NULL,
-        provider_reference TEXT,
-        grace_ends_at TIMESTAMPTZ NOT NULL,
-        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `
-
-    await this.prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_billing_grace_periods_active
-      ON billing_grace_periods (grace_ends_at)
-      WHERE is_active = TRUE
-    `
-
-    this.graceTablesReady = true
-  }
-
-  private async ensureApiUsageTable(): Promise<void> {
-    if (this.apiUsageTablesReady) {
-      return
-    }
-
-    await this.prisma.$executeRaw`
-      CREATE TABLE IF NOT EXISTS api_usage_events (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL,
-        method TEXT NOT NULL,
-        path TEXT NOT NULL,
-        status_code INTEGER NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `
-
-    await this.prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_api_usage_events_org_created_at
-      ON api_usage_events (organization_id, created_at DESC)
-    `
-
-    this.apiUsageTablesReady = true
-  }
-
   // ── Invoice PDF ─────────────────────────────────────────────────────────────
 
   async generateInvoicePdf(invoiceId: string, organizationId: string): Promise<StreamableFile> {
-    await this.ensureBillingTables()
-
-    const rows = await this.prisma.$queryRaw<BillingInvoiceRow[]>`
-      SELECT id, organization_id, provider, provider_reference,
-             amount_minor, currency, status, issued_at, paid_at
-      FROM billing_invoices
-      WHERE id = ${invoiceId}
-        AND organization_id = ${organizationId}
-      LIMIT 1
-    `
-
-    const invoice = rows[0]
+    const invoice = await this.prisma.billingInvoice.findFirst({
+      where: {
+        id: invoiceId,
+        organizationId,
+      },
+    })
     if (!invoice) {
       throw new BadRequestException('Invoice not found')
     }
@@ -751,18 +659,18 @@ export class BillingService {
       select: { name: true, createdAt: true },
     })
 
-    const amountDisplay = this.mapInvoiceAmount(Number(invoice.amount_minor), invoice.currency)
+    const amountDisplay = this.mapInvoiceAmount(Number(invoice.amountMinor), invoice.currency)
     const formattedAmount = new Intl.NumberFormat('en-NG', {
       style: 'currency',
       currency: invoice.currency,
       minimumFractionDigits: 2,
     }).format(amountDisplay)
 
-    const issuedDate = invoice.issued_at.toLocaleDateString('en-NG', {
+    const issuedDate = invoice.issuedAt.toLocaleDateString('en-NG', {
       day: '2-digit', month: 'long', year: 'numeric',
     })
-    const paidDate = invoice.paid_at
-      ? invoice.paid_at.toLocaleDateString('en-NG', {
+    const paidDate = invoice.paidAt
+      ? invoice.paidAt.toLocaleDateString('en-NG', {
           day: '2-digit', month: 'long', year: 'numeric',
         })
       : '\u2014'
@@ -846,55 +754,6 @@ export class BillingService {
     })
   }
 
-  private async ensureBillingTables() {
-    if (this.billingTablesReady) {
-      return
-    }
-
-    await this.prisma.$executeRaw`
-      CREATE TABLE IF NOT EXISTS billing_invoices (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL,
-        provider TEXT NOT NULL,
-        provider_reference TEXT,
-        amount_minor INTEGER NOT NULL DEFAULT 0,
-        currency TEXT NOT NULL DEFAULT 'NGN',
-        status TEXT NOT NULL,
-        issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        paid_at TIMESTAMPTZ,
-        metadata JSONB,
-        UNIQUE (provider, provider_reference)
-      )
-    `
-
-    await this.prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_billing_invoices_org_issued_at
-      ON billing_invoices (organization_id, issued_at DESC)
-    `
-
-    await this.prisma.$executeRaw`
-      CREATE TABLE IF NOT EXISTS payment_events (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT,
-        provider TEXT NOT NULL,
-        event_type TEXT NOT NULL,
-        provider_event_id TEXT,
-        payload JSONB NOT NULL,
-        processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        is_valid BOOLEAN NOT NULL,
-        validation_error TEXT,
-        UNIQUE (provider, provider_event_id)
-      )
-    `
-
-    await this.prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_payment_events_org_processed_at
-      ON payment_events (organization_id, processed_at DESC)
-    `
-
-    this.billingTablesReady = true
-  }
-
   private async recordPaymentEvent(input: {
     organizationId: string | null | undefined
     provider: 'stripe' | 'paystack'
@@ -904,30 +763,21 @@ export class BillingService {
     isValid: boolean
     validationError?: string
   }) {
-    await this.ensureBillingTables()
-
-    await this.prisma.$executeRaw`
-      INSERT INTO payment_events (
-        id,
-        organization_id,
-        provider,
-        event_type,
-        provider_event_id,
-        payload,
-        is_valid,
-        validation_error
-      ) VALUES (
-        ${randomUUID()},
-        ${input.organizationId ?? null},
-        ${input.provider},
-        ${input.eventType},
-        ${input.providerEventId ?? null},
-        ${JSON.stringify(input.payload ?? {})}::jsonb,
-        ${input.isValid},
-        ${input.validationError ?? null}
-      )
-      ON CONFLICT (provider, provider_event_id) DO NOTHING
-    `
+    await this.prisma.paymentEvent.createMany({
+      data: [
+        {
+          id: randomUUID(),
+          organizationId: input.organizationId ?? null,
+          provider: input.provider,
+          eventType: input.eventType,
+          providerEventId: input.providerEventId ?? null,
+          payload: input.payload as object,
+          isValid: input.isValid,
+          validationError: input.validationError ?? null,
+        },
+      ],
+      skipDuplicates: true,
+    })
   }
 
   private async upsertInvoice(input: {
@@ -939,39 +789,49 @@ export class BillingService {
     status: string
     paidAt: Date | null
   }) {
-    await this.ensureBillingTables()
+    if (input.providerReference) {
+      await this.prisma.billingInvoice.upsert({
+        where: {
+          provider_providerReference: {
+            provider: input.provider,
+            providerReference: input.providerReference,
+          },
+        },
+        create: {
+          id: randomUUID(),
+          organizationId: input.organizationId,
+          provider: input.provider,
+          providerReference: input.providerReference,
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          status: input.status,
+          paidAt: input.paidAt,
+          metadata: { source: 'billing_webhook' },
+        },
+        update: {
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          status: input.status,
+          paidAt: input.paidAt,
+          metadata: { source: 'billing_webhook' },
+        },
+      })
+      return
+    }
 
-    const invoiceId = randomUUID()
-    await this.prisma.$executeRaw`
-      INSERT INTO billing_invoices (
-        id,
-        organization_id,
-        provider,
-        provider_reference,
-        amount_minor,
-        currency,
-        status,
-        paid_at,
-        metadata
-      ) VALUES (
-        ${invoiceId},
-        ${input.organizationId},
-        ${input.provider},
-        ${input.providerReference},
-        ${input.amountMinor},
-        ${input.currency},
-        ${input.status},
-        ${input.paidAt},
-        ${JSON.stringify({ source: 'billing_webhook' })}::jsonb
-      )
-      ON CONFLICT (provider, provider_reference)
-      DO UPDATE SET
-        amount_minor = EXCLUDED.amount_minor,
-        currency = EXCLUDED.currency,
-        status = EXCLUDED.status,
-        paid_at = EXCLUDED.paid_at,
-        metadata = EXCLUDED.metadata
-    `
+    await this.prisma.billingInvoice.create({
+      data: {
+        id: randomUUID(),
+        organizationId: input.organizationId,
+        provider: input.provider,
+        providerReference: null,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        status: input.status,
+        paidAt: input.paidAt,
+        metadata: { source: 'billing_webhook' },
+      },
+    })
   }
 
   private mapInvoiceAmount(amountMinor: number, currency: string): number {
@@ -1026,35 +886,22 @@ export class BillingService {
   }
 
   async getInvoices(organizationId: string) {
-    await this.ensureBillingTables()
-
-    const invoices = await this.prisma.$queryRaw<BillingInvoiceRow[]>`
-      SELECT
-        id,
-        organization_id,
-        provider,
-        provider_reference,
-        amount_minor,
-        currency,
-        status,
-        issued_at,
-        paid_at
-      FROM billing_invoices
-      WHERE organization_id = ${organizationId}
-      ORDER BY issued_at DESC
-      LIMIT 100
-    `
+    const invoices = await this.prisma.billingInvoice.findMany({
+      where: { organizationId },
+      orderBy: { issuedAt: 'desc' },
+      take: 100,
+    })
 
     if (invoices.length > 0) {
       return invoices.map((invoice) => ({
         id: invoice.id,
-        date: invoice.issued_at.toISOString(),
-        amount: this.mapInvoiceAmount(Number(invoice.amount_minor), invoice.currency),
+        date: invoice.issuedAt.toISOString(),
+        amount: this.mapInvoiceAmount(Number(invoice.amountMinor), invoice.currency),
         currency: invoice.currency,
         status: invoice.status,
         provider: invoice.provider,
-        providerReference: invoice.provider_reference,
-        paidAt: invoice.paid_at?.toISOString() ?? null,
+        providerReference: invoice.providerReference,
+        paidAt: invoice.paidAt?.toISOString() ?? null,
       }))
     }
 

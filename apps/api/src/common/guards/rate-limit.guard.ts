@@ -5,7 +5,7 @@ import { RateLimitService } from '../services/rate-limit.service'
 export class RateLimitGuard implements CanActivate {
   constructor(private rateLimitService: RateLimitService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest()
     const tenantId = request.user?.organizationId || request.headers['x-api-key']
 
@@ -16,7 +16,7 @@ export class RateLimitGuard implements CanActivate {
       request.headers['x-forwarded-for'] ||
       'unknown'
 
-    const allowed = this.rateLimitService.checkRateLimit(bucketKey)
+    const allowed = await this.rateLimitService.checkRateLimit(String(bucketKey))
     if (!allowed) {
       throw new HttpException('Rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS)
     }

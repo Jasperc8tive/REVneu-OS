@@ -13,11 +13,19 @@ describe('AgentRunsService', () => {
     assertWithinLimit: jest.fn(),
   }
 
+  const eventEmitterMock = {
+    emit: jest.fn(),
+  }
+
   let service: AgentRunsService
 
   beforeEach(() => {
     jest.clearAllMocks()
-    service = new AgentRunsService(prismaMock as never, billingServiceMock as never)
+    service = new AgentRunsService(
+      prismaMock as never,
+      billingServiceMock as never,
+      eventEmitterMock as never,
+    )
   })
 
   it('creates an agent run record', async () => {
@@ -45,6 +53,15 @@ describe('AgentRunsService', () => {
         }),
       }),
     )
+
+    expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+      'audit',
+      expect.objectContaining({
+        organizationId: 'org-1',
+        action: 'agent_run.created',
+        resourceType: 'agent_run',
+      }),
+    )
   })
 
   it('lists runs scoped by organization and optional agent', async () => {
@@ -58,6 +75,14 @@ describe('AgentRunsService', () => {
           organizationId: 'org-1',
           agentId: 'marketing_performance',
         },
+      }),
+    )
+
+    expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+      'audit',
+      expect.objectContaining({
+        organizationId: 'org-1',
+        action: 'agent_run.listed',
       }),
     )
   })

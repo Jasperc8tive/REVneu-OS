@@ -3,12 +3,6 @@ import { Cron } from '@nestjs/schedule'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { PrismaService } from '@revneu/database'
 
-type GracePeriodRow = {
-  organization_id: string
-  provider: string
-  provider_reference: string | null
-}
-
 @Injectable()
 export class BillingSchedulerService {
   private readonly logger = new Logger(BillingSchedulerService.name)
@@ -92,20 +86,18 @@ export class BillingSchedulerService {
   async expireGracePeriods(): Promise<void> {
     const now = new Date()
 
-    let expiredRows: GracePeriodRow[]
-
-    try {
-      expiredRows = await this.prisma.$queryRaw<GracePeriodRow[]>`
-        SELECT organization_id, provider, provider_reference
-        FROM billing_grace_periods
-        WHERE is_active = TRUE
-          AND grace_ends_at < ${now}
-        LIMIT 500
-      `
-    } catch {
-      // Table may not exist yet if no payment failure has ever occurred.
-      return
-    }
+    const expiredRows = await this.prisma.billingGracePeriod.findMany({
+      where: {
+        isActive: true,
+        graceEndsAt: { lt: now },
+      },
+      select: {
+        organizationId: true,
+        provider: true,
+        providerReference: true,
+      },
+      take: 500,
+    })
 
     if (expiredRows.length === 0) {
       return
@@ -116,40 +108,38 @@ export class BillingSchedulerService {
     for (const row of expiredRows) {
       try {
         await this.prisma.organization.update({
-          where: { id: row.organization_id },
+          where: { id: row.organizationId },
           data: { subscriptionStatus: 'CANCELED' },
         })
 
-        await this.prisma.$executeRaw`
-          UPDATE billing_grace_periods
-          SET is_active = FALSE
-          WHERE organization_id = ${row.organization_id}
-            AND is_active = TRUE
-        `
+        await this.prisma.billingGracePeriod.update({
+          where: { organizationId: row.organizationId },
+          data: { isActive: false },
+        })
 
         await this.prisma.auditLog.create({
           data: {
-            organizationId: row.organization_id,
+            organizationId: row.organizationId,
             action: 'billing.subscription.canceled',
             resourceType: 'subscription',
-            resourceId: row.organization_id,
+            resourceId: row.organizationId,
             changes: {
               reason: 'grace_period_expired',
               provider: row.provider,
-              providerReference: row.provider_reference,
+              providerReference: row.providerReference,
             },
           },
         })
 
         this.eventEmitter.emit('billing.subscription.canceled', {
-          organizationId: row.organization_id,
+          organizationId: row.organizationId,
           provider: row.provider,
           reason: 'grace_period_expired',
           canceledAt: now.toISOString(),
         })
       } catch (error) {
         this.logger.error(
-          `Failed to cancel subscription for org ${row.organization_id}`,
+          `Failed to cancel subscription for org ${row.organizationId}`,
           error instanceof Error ? error.message : String(error),
         )
       }

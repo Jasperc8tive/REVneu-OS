@@ -8,6 +8,16 @@ const sessionCookieNames = [
 ]
 
 export function middleware(request: NextRequest) {
+  const enforceHttps = (process.env.ENFORCE_HTTPS ?? 'true').toLowerCase() === 'true'
+  const host = request.headers.get('host') ?? ''
+  const isLocalHost = /(^localhost(:\d+)?$)|(^127\.0\.0\.1(:\d+)?$)/i.test(host)
+
+  if (enforceHttps && !isLocalHost && request.nextUrl.protocol === 'http:') {
+    const httpsUrl = request.nextUrl.clone()
+    httpsUrl.protocol = 'https:'
+    return NextResponse.redirect(httpsUrl, 301)
+  }
+
   const hasSession = sessionCookieNames.some((name) => request.cookies.has(name))
   const { pathname } = request.nextUrl
 

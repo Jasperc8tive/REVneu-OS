@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 import { PrismaService } from '@revneu/database'
 import { BillingService } from '../billing/billing.service'
 import { CreateAgentRunDto } from './dto/create-agent-run.dto'
@@ -8,6 +9,7 @@ export class AgentRunsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billingService: BillingService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async createRun(dto: CreateAgentRunDto) {
@@ -24,7 +26,7 @@ export class AgentRunsService {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prisma = this.prisma as any
-    return prisma.agentRun.create({
+    const run = await prisma.agentRun.create({
       data: {
         ...(dto.id ? { id: dto.id } : {}),
         organizationId: dto.organizationId,
@@ -40,12 +42,26 @@ export class AgentRunsService {
         metadata: dto.metadata as unknown as object,
       },
     })
+
+    this.eventEmitter.emit('audit', {
+      organizationId: dto.organizationId,
+      action: 'agent_run.created',
+      resourceType: 'agent_run',
+      resourceId: run.id,
+      changes: {
+        agentId: dto.agentId,
+        status: dto.status,
+        period: dto.period,
+      },
+    })
+
+    return run
   }
 
   async listRuns(organizationId: string, agentId?: string) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prisma = this.prisma as any
-    return prisma.agentRun.findMany({
+    const runs = await prisma.agentRun.findMany({
       where: {
         organizationId,
         ...(agentId ? { agentId } : {}),
@@ -55,5 +71,17 @@ export class AgentRunsService {
       },
       take: 100,
     })
+
+    this.eventEmitter.emit('audit', {
+      organizationId,
+      action: 'agent_run.listed',
+      resourceType: 'agent_run',
+      changes: {
+        agentId: agentId ?? null,
+        returnedCount: runs.length,
+      },
+    })
+
+    return runs
   }
 }

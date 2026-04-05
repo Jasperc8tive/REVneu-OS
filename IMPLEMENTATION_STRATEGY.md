@@ -595,14 +595,14 @@ ENTERPRISE:
 ## Cross-Cutting Concerns (All Stages)
 
 ### Security (OWASP Top 10 Compliance)
-- All inputs validated with class-validator (NestJS) + Pydantic (Python)
-- SQL injection prevention via Prisma parameterized queries (no raw SQL)
-- XSS prevention via Next.js output escaping + CSP headers
-- Secrets in environment variables only (never committed to git)
-- HTTPS enforced in all environments
-- API rate limiting per tenant + per IP
-- Audit log of all sensitive operations (auth, data access, agent runs)
-- CORS locked to allowed origins
+- [x] All inputs validated with class-validator (NestJS) + Pydantic (Python) — PASS
+- [x] SQL injection prevention via Prisma parameterized queries (no raw SQL) — PASS
+- [x] XSS prevention via Next.js output escaping + CSP headers — PASS
+- [x] Secrets in environment variables only (never committed to git) — PASS
+- [x] HTTPS enforced in all environments — PASS (HTTP requests to non-local hosts are redirected to HTTPS)
+- [x] API rate limiting per tenant + per IP — PASS (Redis-backed with safe in-memory fallback)
+- [x] Audit log of all sensitive operations (auth, data access, agent runs) — PASS
+- [x] CORS locked to allowed origins — PASS
 
 ### Error Handling Standard
 All APIs return this shape:
@@ -616,6 +616,8 @@ All APIs return this shape:
   }
 }
 ```
+
+- [x] Standardized error envelope applied in global exception filter — PASS
 
 ### Environment Variables Structure
 ```
@@ -641,6 +643,9 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 AGENT_API_KEY=          # Internal key for NestJS → Python auth
 ```
+
+- [ ] Per-app env files (`apps/api/.env`, `apps/web/.env.local`, `apps/agents/.env`) are documented but not committed by design — PARTIAL
+- [x] Canonical template exists in root `.env.example` and maps to active compose services — PASS
 
 ---
 

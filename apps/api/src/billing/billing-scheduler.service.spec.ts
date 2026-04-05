@@ -6,11 +6,13 @@ describe('BillingSchedulerService', () => {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    billingGracePeriod: {
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
     auditLog: {
       create: jest.fn(),
     },
-    $queryRaw: jest.fn(),
-    $executeRaw: jest.fn(),
   }
 
   const eventEmitterMock = {

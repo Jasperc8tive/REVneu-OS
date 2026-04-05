@@ -20,8 +20,6 @@ export interface ApiResponse<T> {
 export class ApiResponseInterceptor<T>
   implements NestInterceptor<T, ApiResponse<T>>
 {
-  private apiUsageTablesReady = false
-
   constructor(private readonly prisma: PrismaService) {}
 
   intercept(
@@ -72,50 +70,17 @@ export class ApiResponseInterceptor<T>
     const method = request.method ?? 'GET'
 
     try {
-      await this.ensureApiUsageTable()
-      await this.prisma.$executeRaw`
-        INSERT INTO api_usage_events (
-          id,
-          organization_id,
+      await this.prisma.apiUsageEvent.create({
+        data: {
+          id: randomUUID(),
+          organizationId,
           method,
           path,
-          status_code,
-          created_at
-        ) VALUES (
-          ${randomUUID()},
-          ${organizationId},
-          ${method},
-          ${path},
-          ${statusCode},
-          NOW()
-        )
-      `
+          statusCode,
+        },
+      })
     } catch {
       // Usage metering must never block API responses.
     }
-  }
-
-  private async ensureApiUsageTable(): Promise<void> {
-    if (this.apiUsageTablesReady) {
-      return
-    }
-
-    await this.prisma.$executeRaw`
-      CREATE TABLE IF NOT EXISTS api_usage_events (
-        id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL,
-        method TEXT NOT NULL,
-        path TEXT NOT NULL,
-        status_code INTEGER NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `
-
-    await this.prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_api_usage_events_org_created_at
-      ON api_usage_events (organization_id, created_at DESC)
-    `
-
-    this.apiUsageTablesReady = true
   }
 }

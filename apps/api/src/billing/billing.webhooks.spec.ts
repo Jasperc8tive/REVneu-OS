@@ -23,18 +23,32 @@ const eventEmitterMock = {
 } as unknown as EventEmitter2
 
 const prismaMock = {
-  $executeRaw: jest.fn().mockResolvedValue(1),
-  $queryRaw: jest.fn().mockResolvedValue([]),
   organization: {
     findUnique: jest.fn(),
     update: jest.fn().mockResolvedValue({}),
   },
+  billingInvoice: {
+    upsert: jest.fn().mockResolvedValue({}),
+    create: jest.fn().mockResolvedValue({}),
+  },
+  paymentEvent: {
+    createMany: jest.fn().mockResolvedValue({ count: 1 }),
+  },
+  billingGracePeriod: {
+    upsert: jest.fn().mockResolvedValue({}),
+  },
   auditLog: {
     create: jest.fn().mockResolvedValue({}),
   },
+  apiUsageEvent: {
+    count: jest.fn().mockResolvedValue(0),
+  },
   user: { count: jest.fn().mockResolvedValue(0) },
   integrationConnection: { count: jest.fn().mockResolvedValue(0) },
-  agentRun: { findMany: jest.fn().mockResolvedValue([]) },
+  agentRun: {
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(0),
+  },
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -66,10 +80,6 @@ describe('BillingService – webhook handlers', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     service = new BillingService(prismaMock as never, eventEmitterMock)
-
-    // Pre-set billingTablesReady so ensureBillingTables() is a no-op for every
-    // test; the DDL path is separately covered by the $executeRaw mock returning 1.
-    ;(service as unknown as { billingTablesReady: boolean }).billingTablesReady = true
 
     delete process.env.PAYSTACK_SECRET_KEY
     delete process.env.STRIPE_SECRET_KEY
@@ -165,8 +175,8 @@ describe('BillingService – webhook handlers', () => {
           }),
         }),
       )
-      // upsert invoice + record payment event each call $executeRaw
-      expect(prismaMock.$executeRaw).toHaveBeenCalled()
+      expect(prismaMock.billingInvoice.upsert).toHaveBeenCalled()
+      expect(prismaMock.paymentEvent.createMany).toHaveBeenCalled()
     })
 
     it('accepts valid charge.success without applying plan when metadata is absent', async () => {
@@ -329,7 +339,7 @@ describe('BillingService – webhook handlers', () => {
         /* expected rejection */
       })
 
-      expect(prismaMock.$executeRaw).toHaveBeenCalled()
+      expect(prismaMock.paymentEvent.createMany).toHaveBeenCalled()
     })
 
     it('throws BadRequestException when organizationId metadata is missing', async () => {
@@ -354,7 +364,7 @@ describe('BillingService – webhook handlers', () => {
       ).rejects.toBeInstanceOf(BadRequestException)
     })
 
-    it('accepts valid checkout.session.completed – applies plan and upserts invoice', async () => {
+    it('accepts valid checkout.session.completed – applies plan and records event', async () => {
       process.env.STRIPE_SECRET_KEY = STRIPE_SECRET
       process.env.STRIPE_WEBHOOK_SECRET = STRIPE_WEBHOOK_SECRET
       prismaMock.organization.update.mockResolvedValueOnce({})
@@ -386,7 +396,7 @@ describe('BillingService – webhook handlers', () => {
           }),
         }),
       )
-      expect(prismaMock.$executeRaw).toHaveBeenCalled()
+      expect(prismaMock.paymentEvent.createMany).toHaveBeenCalled()
     })
 
     it('throws BadRequestException for checkout.session.completed with wrong mode', async () => {
@@ -431,7 +441,7 @@ describe('BillingService – webhook handlers', () => {
       const result = await service.handleStripeWebhook(body, makeStripeSig(body))
 
       expect(result).toEqual({ accepted: true, mode: 'live' })
-      expect(prismaMock.$executeRaw).toHaveBeenCalled()
+      expect(prismaMock.billingInvoice.upsert).toHaveBeenCalled()
     })
 
     it('accepts valid invoice.payment_failed event and upserts invoice with FAILED status', async () => {
@@ -455,7 +465,7 @@ describe('BillingService – webhook handlers', () => {
       const result = await service.handleStripeWebhook(body, makeStripeSig(body))
 
       expect(result).toEqual({ accepted: true, mode: 'live' })
-      expect(prismaMock.$executeRaw).toHaveBeenCalled()
+      expect(prismaMock.paymentEvent.createMany).toHaveBeenCalled()
     })
 
     it('handles Buffer rawBody the same as string rawBody', async () => {
