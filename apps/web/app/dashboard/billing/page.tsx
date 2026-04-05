@@ -41,6 +41,9 @@ type UsageSummary = {
     users: number
     integrations: number
     agents: number
+    agentRunsWindow?: number
+    apiCallsWindow?: number
+    windowDays?: number
   }
 }
 
@@ -100,6 +103,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!accessToken) {
@@ -213,6 +217,42 @@ export default function BillingPage() {
     }
   }
 
+  async function downloadInvoicePdf(invoiceId: string) {
+    if (!accessToken) {
+      setError('Missing user session for invoice download.')
+      return
+    }
+
+    setDownloadingInvoiceId(invoiceId)
+    setError('')
+
+    try {
+      const response = await fetch(`${apiBase}/api/v1/billing/invoices/${invoiceId}/pdf`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to download invoice')
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = `invoice-${invoiceId.slice(0, 8)}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      setError('Unable to download invoice right now. Please try again.')
+    } finally {
+      setDownloadingInvoiceId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -271,6 +311,9 @@ export default function BillingPage() {
                 </p>
                 <p className="mt-1">
                   Usage: {usage.usage.users}/{usage.limits.maxUsers} users, {usage.usage.integrations}/{usage.limits.maxIntegrations} integrations, {usage.usage.agents}/{usage.limits.maxAgents} agents
+                </p>
+                <p className="mt-1">
+                  Metering ({usage.usage.windowDays ?? 30} days): {usage.usage.agentRunsWindow ?? 0} agent runs, {usage.usage.apiCallsWindow ?? 0} API calls
                 </p>
               </div>
             ) : null}
@@ -346,6 +389,7 @@ export default function BillingPage() {
                       <th className="py-3 px-4">Date</th>
                       <th className="py-3 px-4">Amount</th>
                       <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -361,6 +405,16 @@ export default function BillingPage() {
                           <span className="inline-flex rounded px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-700">
                             {invoice.status}
                           </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => void downloadInvoicePdf(invoice.id)}
+                            disabled={downloadingInvoiceId === invoice.id}
+                            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                          >
+                            {downloadingInvoiceId === invoice.id ? 'Downloading...' : 'Download PDF'}
+                          </button>
                         </td>
                       </tr>
                     ))}

@@ -1,4 +1,5 @@
 import { AgentRunsService } from './agent-runs.service'
+import { ForbiddenException } from '@nestjs/common'
 
 describe('AgentRunsService', () => {
   const prismaMock = {
@@ -59,5 +60,27 @@ describe('AgentRunsService', () => {
         },
       }),
     )
+  })
+
+  it('blocks creating a third+ distinct agent run for STARTER when plan limit is exceeded', async () => {
+    prismaMock.agentRun.findMany.mockResolvedValue([
+      { agentId: 'marketing_performance' },
+      { agentId: 'customer_acquisition' },
+    ])
+    billingServiceMock.assertWithinLimit.mockRejectedValue(
+      new ForbiddenException('Plan limit exceeded for agents. Upgrade required.'),
+    )
+
+    await expect(
+      service.createRun({
+        organizationId: 'org-starter',
+        agentId: 'sales_pipeline',
+        period: 'last_30_days',
+        status: 'QUEUED',
+        metadata: {},
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+
+    expect(prismaMock.agentRun.create).not.toHaveBeenCalled()
   })
 })

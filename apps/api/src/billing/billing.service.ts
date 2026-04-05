@@ -60,6 +60,7 @@ const STRIPE_TOLERANCE_SECONDS = 300
 export class BillingService {
   private billingTablesReady = false
   private graceTablesReady = false
+  private apiUsageTablesReady = false
 
   constructor(
     private readonly prisma: PrismaService,
@@ -137,7 +138,12 @@ export class BillingService {
   }
 
   async getUsage(organizationId: string) {
-    const [users, integrations, activeAgents] = await Promise.all([
+    await this.ensureApiUsageTable()
+
+    const windowDays = 30
+    const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
+
+    const [users, integrations, activeAgents, agentRunsWindow, apiCallsWindowRows] = await Promise.all([
       this.prisma.user.count({ where: { organizationId } }),
       this.prisma.integrationConnection.count({
         where: { organizationId, status: { not: 'DISCONNECTED' } },
@@ -147,12 +153,29 @@ export class BillingService {
         select: { agentId: true },
         distinct: ['agentId'],
       }),
+      this.prisma.agentRun.count({
+        where: {
+          organizationId,
+          startedAt: { gte: windowStart },
+        },
+      }),
+      this.prisma.$queryRaw<Array<{ count: bigint | number }>>`
+        SELECT COUNT(*)::bigint AS count
+        FROM api_usage_events
+        WHERE organization_id = ${organizationId}
+          AND created_at >= ${windowStart}
+      `,
     ])
+
+    const apiCallsWindow = Number(apiCallsWindowRows[0]?.count ?? 0)
 
     return {
       users,
       integrations,
       agents: activeAgents.length,
+      agentRunsWindow,
+      apiCallsWindow,
+      windowDays,
     }
   }
 
@@ -678,6 +701,30 @@ export class BillingService {
     `
 
     this.graceTablesReady = true
+  }
+
+  private async ensureApiUsageTable(): Promise<void> {
+    if (this.apiUsageTablesReady) {
+      return
+    }
+
+    await this.prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS api_usage_events (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        method TEXT NOT NULL,
+        path TEXT NOT NULL,
+        status_code INTEGER NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `
+
+    await this.prisma.$executeRaw`
+      CREATE INDEX IF NOT EXISTS idx_api_usage_events_org_created_at
+      ON api_usage_events (organization_id, created_at DESC)
+    `
+
+    this.apiUsageTablesReady = true
   }
 
   // ── Invoice PDF ─────────────────────────────────────────────────────────────
