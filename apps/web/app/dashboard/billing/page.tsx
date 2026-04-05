@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { canManageBilling, getSessionRole } from '@/lib/rbac'
 
 type BillingPlan = {
   id: string
@@ -87,6 +88,8 @@ function asList<T>(payload: unknown): T[] {
 
 export default function BillingPage() {
   const { data: session } = useSession()
+  const role = getSessionRole(session)
+  const canStartCheckout = canManageBilling(role)
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
 
@@ -162,6 +165,11 @@ export default function BillingPage() {
   }, [accessToken, apiBase])
 
   async function startCheckout(planId: string, provider: 'paystack' | 'stripe') {
+    if (!canStartCheckout) {
+      setError('Your role does not allow plan upgrades.')
+      return
+    }
+
     if (!accessToken || !session?.user?.email) {
       setError('Missing user session for checkout.')
       return
@@ -212,6 +220,7 @@ export default function BillingPage() {
         <p className="mt-2 text-sm text-slate-600">
           Track plan, usage, and upgrade options for your organization.
         </p>
+        <p className="mt-2 text-xs text-slate-500">Role: {role}. Upgrades are limited to OWNER and ADMIN.</p>
       </header>
 
       {error ? (
@@ -305,7 +314,7 @@ export default function BillingPage() {
                       <button
                         type="button"
                         onClick={() => void startCheckout(plan.id, 'paystack')}
-                        disabled={checkoutLoading !== null}
+                        disabled={checkoutLoading !== null || !canStartCheckout}
                         className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
                       >
                         {checkoutLoading === `paystack:${plan.id}` ? 'Starting...' : 'Paystack'}
@@ -313,7 +322,7 @@ export default function BillingPage() {
                       <button
                         type="button"
                         onClick={() => void startCheckout(plan.id, 'stripe')}
-                        disabled={checkoutLoading !== null}
+                        disabled={checkoutLoading !== null || !canStartCheckout}
                         className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
                       >
                         {checkoutLoading === `stripe:${plan.id}` ? 'Starting...' : 'Stripe'}

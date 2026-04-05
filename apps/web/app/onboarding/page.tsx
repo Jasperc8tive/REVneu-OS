@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { canManageOnboarding, getSessionRole } from '@/lib/rbac'
 
 type OnboardingStep =
   | 'org_profile'
@@ -63,6 +64,8 @@ function unwrapData<T>(payload: unknown): T {
 
 export default function OnboardingPage() {
   const { data: session } = useSession()
+  const role = getSessionRole(session)
+  const canAdvanceOnboarding = canManageOnboarding(role)
   const router = useRouter()
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
@@ -119,6 +122,11 @@ export default function OnboardingPage() {
   }, [accessToken, apiBase, router])
 
   const completeStep = async (step: OnboardingStep) => {
+    if (!canAdvanceOnboarding) {
+      setError('Your role does not allow onboarding step updates.')
+      return
+    }
+
     if (!accessToken) {
       return
     }
@@ -185,6 +193,7 @@ export default function OnboardingPage() {
               Complete the setup checklist to unlock the full Growth Control
               Center experience.
             </p>
+            <p className="mt-2 text-xs text-slate-500">Role: {role}. Step updates require OWNER, ADMIN, or ANALYST.</p>
           </div>
           <div className="flex-shrink-0">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100">
@@ -257,10 +266,10 @@ export default function OnboardingPage() {
                     {!isCompleted && (
                       <button
                         type="button"
-                        disabled={!isActive || completingStep === step.key}
+                        disabled={!isActive || completingStep === step.key || !canAdvanceOnboarding}
                         onClick={() => void completeStep(step.key)}
                         className={`mt-3 inline-flex rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                          isActive
+                          isActive && canAdvanceOnboarding
                             ? 'bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50'
                             : 'bg-slate-100 text-slate-500 cursor-not-allowed'
                         }`}
