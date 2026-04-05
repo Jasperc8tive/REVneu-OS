@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { canManageBilling, getSessionRole } from '@/lib/rbac'
+import { resolveApiBaseUrl } from '@/lib/api-base-url'
 
 type BillingPlan = {
   id: string
@@ -90,10 +91,10 @@ function asList<T>(payload: unknown): T[] {
 }
 
 export default function BillingPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const role = getSessionRole(session)
   const canStartCheckout = canManageBilling(role)
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+  const apiBase = resolveApiBaseUrl()
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
 
   const [subscription, setSubscription] = useState<Subscription | null>(null)
@@ -106,7 +107,13 @@ export default function BillingPage() {
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (status === 'loading') {
+      return
+    }
+
     if (!accessToken) {
+      setLoading(false)
+      setError('Your session has expired. Please sign in again.')
       return
     }
 
@@ -166,7 +173,7 @@ export default function BillingPage() {
     }
 
     void loadBillingData()
-  }, [accessToken, apiBase])
+  }, [accessToken, apiBase, status])
 
   async function startCheckout(planId: string, provider: 'paystack' | 'stripe') {
     if (!canStartCheckout) {

@@ -1,6 +1,7 @@
 import type { NextAuthOptions, Session, User } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import type { JWT } from 'next-auth/jwt'
+import { resolveApiBaseUrl } from '@/lib/api-base-url'
 
 type AuthUser = User & {
   organizationId: string
@@ -41,7 +42,7 @@ export const authConfig: NextAuthOptions = {
         }
 
         try {
-          const apiBaseUrl = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL
+          const apiBaseUrl = resolveApiBaseUrl()
           const res = await fetch(`${apiBaseUrl}/api/v1/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

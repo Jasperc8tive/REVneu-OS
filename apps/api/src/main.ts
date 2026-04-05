@@ -31,16 +31,45 @@ async function bootstrap(): Promise<void> {
   const httpApp = app.getHttpAdapter().getInstance()
   httpApp.set('trust proxy', true)
 
+  const shouldEnforceHttps = (): boolean => {
+    const raw = process.env.ENFORCE_HTTPS?.trim().toLowerCase()
+    if (raw === 'true') {
+      return true
+    }
+    if (raw === 'false') {
+      return false
+    }
+
+    return (process.env.NODE_ENV ?? 'development') === 'production'
+  }
+
+  const isInternalHost = (host: string): boolean => {
+    const hostname = host.split(':')[0]?.toLowerCase() ?? ''
+    if (!hostname) {
+      return true
+    }
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return true
+    }
+
+    // Docker/Kubernetes service names are usually single-label hosts (no dots).
+    if (!hostname.includes('.') && /^[a-z0-9-]+$/i.test(hostname)) {
+      return true
+    }
+
+    return false
+  }
+
   // Enforce HTTPS for non-local hosts when enabled.
   app.use((req: Request, res: Response, next: NextFunction) => {
-    const enforceHttps = (process.env.ENFORCE_HTTPS ?? 'true').toLowerCase() === 'true'
+    const enforceHttps = shouldEnforceHttps()
     if (!enforceHttps) {
       return next()
     }
 
     const host = req.headers.host ?? ''
-    const isLocalHost = /(^localhost(:\d+)?$)|(^127\.0\.0\.1(:\d+)?$)/i.test(host)
-    if (isLocalHost) {
+    if (isInternalHost(host)) {
       return next()
     }
 
