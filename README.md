@@ -1,5 +1,6 @@
 # Revneu OS
-### Agentic Revenue Growth Platform for Nigerian Businesses
+
+## Agentic Revenue Growth Platform for Nigerian Businesses
 
 > Connect to a company's data → analyze growth performance → deploy AI agents that recommend and execute revenue optimizations.
 

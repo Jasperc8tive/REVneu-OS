@@ -22,6 +22,18 @@ export class ApiResponseInterceptor<T>
 {
   constructor(private readonly prisma: PrismaService) {}
 
+  private get prismaExt(): PrismaService & {
+    apiUsageEvent: {
+      create: (args: unknown) => Promise<unknown>
+    }
+  } {
+    return this.prisma as PrismaService & {
+      apiUsageEvent: {
+        create: (args: unknown) => Promise<unknown>
+      }
+    }
+  }
+
   intercept(
     context: ExecutionContext,
     next: CallHandler,
@@ -70,7 +82,7 @@ export class ApiResponseInterceptor<T>
     const method = request.method ?? 'GET'
 
     try {
-      await this.prisma.apiUsageEvent.create({
+      await this.prismaExt.apiUsageEvent.create({
         data: {
           id: randomUUID(),
           organizationId,

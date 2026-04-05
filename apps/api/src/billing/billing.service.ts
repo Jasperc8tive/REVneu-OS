@@ -51,6 +51,38 @@ export class BillingService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  private get prismaExt(): PrismaService & {
+    apiUsageEvent: { count: (args: unknown) => Promise<number> }
+    billingGracePeriod: {
+      upsert: (args: unknown) => Promise<unknown>
+    }
+    billingInvoice: {
+      findFirst: (args: unknown) => Promise<unknown>
+      upsert: (args: unknown) => Promise<unknown>
+      create: (args: unknown) => Promise<unknown>
+      findMany: (args: unknown) => Promise<unknown[]>
+    }
+    paymentEvent: {
+      createMany: (args: unknown) => Promise<unknown>
+    }
+  } {
+    return this.prisma as PrismaService & {
+      apiUsageEvent: { count: (args: unknown) => Promise<number> }
+      billingGracePeriod: {
+        upsert: (args: unknown) => Promise<unknown>
+      }
+      billingInvoice: {
+        findFirst: (args: unknown) => Promise<unknown>
+        upsert: (args: unknown) => Promise<unknown>
+        create: (args: unknown) => Promise<unknown>
+        findMany: (args: unknown) => Promise<unknown[]>
+      }
+      paymentEvent: {
+        createMany: (args: unknown) => Promise<unknown>
+      }
+    }
+  }
+
   getPlans(): Plan[] {
     return [
       {
@@ -141,7 +173,7 @@ export class BillingService {
           startedAt: { gte: windowStart },
         },
       }),
-      this.prisma.apiUsageEvent.count({
+      this.prismaExt.apiUsageEvent.count({
         where: {
           organizationId,
           createdAt: { gte: windowStart },
@@ -605,7 +637,7 @@ export class BillingService {
       data: { subscriptionStatus: 'PAST_DUE' },
     })
 
-    await this.prisma.billingGracePeriod.upsert({
+    await this.prismaExt.billingGracePeriod.upsert({
       where: { organizationId },
       create: {
         id: randomUUID(),
@@ -644,7 +676,7 @@ export class BillingService {
   // ── Invoice PDF ─────────────────────────────────────────────────────────────
 
   async generateInvoicePdf(invoiceId: string, organizationId: string): Promise<StreamableFile> {
-    const invoice = await this.prisma.billingInvoice.findFirst({
+    const invoice = await this.prismaExt.billingInvoice.findFirst({
       where: {
         id: invoiceId,
         organizationId,
@@ -763,7 +795,7 @@ export class BillingService {
     isValid: boolean
     validationError?: string
   }) {
-    await this.prisma.paymentEvent.createMany({
+    await this.prismaExt.paymentEvent.createMany({
       data: [
         {
           id: randomUUID(),
@@ -790,7 +822,7 @@ export class BillingService {
     paidAt: Date | null
   }) {
     if (input.providerReference) {
-      await this.prisma.billingInvoice.upsert({
+      await this.prismaExt.billingInvoice.upsert({
         where: {
           provider_providerReference: {
             provider: input.provider,
@@ -819,7 +851,7 @@ export class BillingService {
       return
     }
 
-    await this.prisma.billingInvoice.create({
+    await this.prismaExt.billingInvoice.create({
       data: {
         id: randomUUID(),
         organizationId: input.organizationId,
@@ -886,14 +918,23 @@ export class BillingService {
   }
 
   async getInvoices(organizationId: string) {
-    const invoices = await this.prisma.billingInvoice.findMany({
+    const invoices = await this.prismaExt.billingInvoice.findMany({
       where: { organizationId },
       orderBy: { issuedAt: 'desc' },
       take: 100,
     })
 
     if (invoices.length > 0) {
-      return invoices.map((invoice) => ({
+      return invoices.map((invoice: {
+        id: string
+        issuedAt: Date
+        amountMinor: number
+        currency: string
+        status: string
+        provider: string
+        providerReference: string | null
+        paidAt: Date | null
+      }) => ({
         id: invoice.id,
         date: invoice.issuedAt.toISOString(),
         amount: this.mapInvoiceAmount(Number(invoice.amountMinor), invoice.currency),

@@ -12,6 +12,28 @@ export class BillingSchedulerService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  private get prismaExt(): PrismaService & {
+    billingGracePeriod: {
+      findMany: (args: unknown) => Promise<Array<{
+        organizationId: string
+        provider: string
+        providerReference: string | null
+      }>>
+      update: (args: unknown) => Promise<unknown>
+    }
+  } {
+    return this.prisma as PrismaService & {
+      billingGracePeriod: {
+        findMany: (args: unknown) => Promise<Array<{
+          organizationId: string
+          provider: string
+          providerReference: string | null
+        }>>
+        update: (args: unknown) => Promise<unknown>
+      }
+    }
+  }
+
   /**
    * Run every hour: find organisations whose trial period has ended and
    * downgrade them from GROWTH/TRIAL → STARTER/ACTIVE (restricted free tier).
@@ -86,7 +108,7 @@ export class BillingSchedulerService {
   async expireGracePeriods(): Promise<void> {
     const now = new Date()
 
-    const expiredRows = await this.prisma.billingGracePeriod.findMany({
+    const expiredRows = await this.prismaExt.billingGracePeriod.findMany({
       where: {
         isActive: true,
         graceEndsAt: { lt: now },
@@ -112,7 +134,7 @@ export class BillingSchedulerService {
           data: { subscriptionStatus: 'CANCELED' },
         })
 
-        await this.prisma.billingGracePeriod.update({
+        await this.prismaExt.billingGracePeriod.update({
           where: { organizationId: row.organizationId },
           data: { isActive: false },
         })
