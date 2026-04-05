@@ -412,16 +412,24 @@ Core Analysis:
 - All LLM calls go through a proxy layer for cost tracking per tenant
 
 ### Stage 4 Audit Checklist
-- [ ] All 7 agents run end-to-end without errors on test data
-- [ ] Agent outputs match defined JSON schema (validated with Pydantic)
-- [ ] LLM calls use structured output mode (no free-form hallucination risk)
-- [ ] Agent runs are logged with duration, token cost, status
-- [ ] Failed agent runs do not lose partial results
-- [ ] Each agent is isolated per tenant (no cross-tenant data leakage)
-- [ ] Agent can run on-demand (manual trigger) and on schedule
-- [ ] Recommendations are stored and retrievable via REST API
-- [ ] Token costs are tracked per tenant per agent run
-- [ ] All agents tested with Nigerian market sample data (NGN, local patterns)
+- [x] All 7 agents run end-to-end without errors on test data (`run-all` returns count=7; Stage 4 runtime tests pass)
+- [x] Agent outputs match defined JSON schema (validated with Pydantic) (`AgentOutput` + `AgentFinding` Pydantic models)
+- [x] LLM calls use structured output mode (no free-form hallucination risk) (`LlmProxyClient` enforces strict Pydantic schema via JSON-schema mode)
+- [x] Agent runs are logged with duration, token cost, status (persisted in `agent_runs` via internal API)
+- [x] Failed agent runs do not lose partial results (runtime checkpoints + partial recommendation persistence on failure)
+- [x] Each agent is isolated per tenant (no cross-tenant data leakage) (all run/recommendation queries filtered by `organizationId` / `tenant_id`)
+- [x] Agent can run on-demand (manual trigger) and on schedule (`/agents/run` and cron-driven scheduler calling `/agents/run-all`)
+- [x] Recommendations are stored and retrievable via REST API (`/recommendations`, `/recommendations/internal`, `/agents/recommendations`)
+- [x] Token costs are tracked per tenant per agent run (`tokensUsed`, `tokenCostUsd`, `organizationId` persisted)
+- [x] All agents tested with Nigerian market sample data (NGN, local patterns) (NGN-denominated fixtures and Lagos/Abuja segment data)
+
+**Stage 4 recheck evidence (2026-04):**
+- Agents runtime tests: `13 passed` (`apps/agents/tests/test_stage4_runtime.py`, `test_health.py`, `test_auth.py`, `test_llm_proxy.py`)
+- Nest orchestration tests: `9 passed` (agent-runs, recommendations, scheduler specs)
+- Verified 7 implemented agents under `apps/agents/agents/*_agent.py`
+- Verified schedule orchestration in `apps/api/src/workers/agent-scheduler.service.ts`
+- Implemented strict LLM proxy path in `apps/agents/api/llm_proxy_client.py`
+- Implemented staged checkpoints and failure recovery path in `apps/agents/api/agent_runtime.py`
 
 ---
 

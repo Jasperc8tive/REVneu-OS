@@ -116,6 +116,23 @@ async def list_recommendations(
     }
 
 
+@router.get('/agents/checkpoints')
+async def list_checkpoints(
+    tenant_id: str = Query(..., min_length=3),
+    agent_id: str | None = Query(None),
+    x_agent_api_key: str | None = Header(default=None),
+) -> dict:
+    require_internal_agent_key(x_agent_api_key)
+
+    checkpoints = await runtime.list_checkpoints(tenant_id=tenant_id, agent_id=agent_id)
+    return {
+        'tenant_id': tenant_id,
+        'agent_id': agent_id,
+        'count': len(checkpoints),
+        'checkpoints': [item.model_dump(mode='json') for item in checkpoints],
+    }
+
+
 @router.get("/agents/persistence/health")
 async def persistence_health(x_agent_api_key: str | None = Header(default=None)) -> dict:
     require_internal_agent_key(x_agent_api_key)

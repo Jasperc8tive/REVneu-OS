@@ -27,6 +27,7 @@ class AgentRunLog(BaseModel):
     tokens_used: int = 0
     token_cost_usd: float = 0.0
     error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RecommendationRecord(BaseModel):
@@ -36,3 +37,13 @@ class RecommendationRecord(BaseModel):
     generated_at: datetime
     findings: list[dict[str, Any]] = Field(default_factory=list)
     summary: str | None = None
+
+
+class AgentCheckpoint(BaseModel):
+    run_id: str
+    tenant_id: str
+    agent_id: str
+    period: str
+    stage: str
+    created_at: datetime
+    payload: dict[str, Any] = Field(default_factory=dict)
