@@ -19,7 +19,7 @@
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate",
     "db:push": "turbo db:push",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

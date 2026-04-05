@@ -13,7 +13,6 @@ RUN npm install --workspace=@revneu/web --workspace=@revneu/shared
 # ── Development ───────────────────────────────────────────────────────────────
 FROM base AS development
 COPY --from=deps /workspace/node_modules ./node_modules
-COPY --from=deps /workspace/apps/web/node_modules ./apps/web/node_modules
 COPY packages/shared/ ./packages/shared/
 COPY apps/web/ ./apps/web/
 WORKDIR /workspace/apps/web
