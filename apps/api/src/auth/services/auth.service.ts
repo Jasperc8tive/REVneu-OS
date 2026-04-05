@@ -80,7 +80,7 @@ export class AuthService {
       data: {
         email: dto.email,
         name: dto.name,
-        passwordHash: this.cryptoService.hashPassword(dto.password),
+        passwordHash: await this.cryptoService.hashPassword(dto.password),
         role: 'OWNER', // First user is owner
         organizationId: organization.id,
       },
@@ -126,6 +126,7 @@ export class AuthService {
       email: user.email,
       organizationId: organization.id,
       role: user.role,
+      sessionId: session.id,
     })
 
     return {
@@ -147,7 +148,8 @@ export class AuthService {
       include: { organization: true },
     })
 
-    if (!user || !this.cryptoService.verifyPassword(dto.password, user.passwordHash)) {
+    const passwordValid = user != null && await this.cryptoService.verifyPassword(dto.password, user.passwordHash)
+    if (!passwordValid) {
       throw new UnauthorizedException('Invalid email or password')
     }
 
@@ -197,6 +199,7 @@ export class AuthService {
       email: user.email,
       organizationId: user.organizationId,
       role: user.role,
+      sessionId: session.id,
     })
 
     return {
@@ -253,6 +256,7 @@ export class AuthService {
       email: user.email,
       organizationId: user.organizationId,
       role: user.role,
+      sessionId: session.id,
     })
 
     const newRefreshToken = this.tokenService.createRefreshToken({

@@ -119,15 +119,22 @@ Organization (Tenant)
 10. End-to-end auth flow test
 
 ### Stage 2 Audit Checklist
-- [ ] User can register and create an organization (tenant)
-- [ ] User can invite team members with role assignment
-- [ ] JWT tokens issue and refresh correctly
-- [ ] RBAC blocks unauthorized role access (tested on ≥3 routes)
-- [ ] Each tenant's data is fully isolated in queries (tenant_id filter verified)
-- [ ] API keys generate, authenticate, and revoke correctly
-- [ ] Rate limiting triggers at configured thresholds
-- [ ] All auth endpoints return consistent error shapes
-- [ ] No raw SQL queries bypass tenant isolation
+- [x] User can register and create an organization (tenant)
+- [x] User can invite team members with role assignment
+- [x] JWT tokens issue and refresh correctly — access (15 m) + refresh (7 d), session-hash-verified rotation, sessionId embedded in access token
+- [x] RBAC blocks unauthorized role access (tested on ≥3 routes) — JwtAuthGuard + RolesGuard applied on 5 user routes, 3 api-key routes
+- [x] Each tenant's data is fully isolated in queries (tenant_id filter verified) — all Prisma queries use `where: { organizationId }`, no raw SQL found
+- [x] API keys generate, authenticate, and revoke correctly — ApiKeyGuard added (x-api-key hash lookup, lastUsedAt update, expiry check)
+- [x] Rate limiting triggers at configured thresholds — 100 req/min/bucket; IP-based bucket for unauthenticated endpoints (login/register brute-force protection added)
+- [x] All auth endpoints return consistent error shapes — GlobalExceptionFilter + ApiResponseInterceptor globally registered
+- [x] No raw SQL queries bypass tenant isolation — zero `$queryRaw`/`$executeRaw` calls found across all modules
+
+**Fixes applied during audit (2025-05):**
+- `CryptoService.hashPassword` / `verifyPassword` migrated from SHA-256 to bcrypt (cost 12) — closes OWASP A07 weak password storage
+- `AuthController.logout` was a stub; now calls `authService.logout(sessionId)` to revoke the session in DB
+- `sessionId` added to access token payload so logout can target the exact session
+- `ApiKeyGuard` created (`apps/api/src/api-keys/api-key.guard.ts`) for x-api-key header authentication
+- `RateLimitGuard` updated to bucket unauthenticated requests by client IP instead of passing them through
 
 ---
 

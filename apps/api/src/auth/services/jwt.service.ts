@@ -7,6 +7,7 @@ export interface AccessTokenPayload {
   email: string
   organizationId: string
   role: string
+  sessionId?: string
 }
 
 export interface RefreshTokenPayload {

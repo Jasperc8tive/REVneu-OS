@@ -33,7 +33,7 @@ export class UsersService {
         name: dto.name,
         role: dto.role,
         organizationId,
-        passwordHash: this.cryptoService.hashPassword(temporaryPassword),
+        passwordHash: await this.cryptoService.hashPassword(temporaryPassword),
       },
       select: {
         id: true,
