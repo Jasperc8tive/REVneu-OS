@@ -3,7 +3,8 @@
 // Full schema with integrations, metrics, agents, billing added in Stages 2–6
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -121,6 +122,10 @@ model Organization {
   agentRuns              AgentRun[]
   recommendations        Recommendation[]
   agentSchedules         AgentSchedule[]
+  billingInvoices        BillingInvoice[]
+  paymentEvents          PaymentEvent[]
+  billingGracePeriod     BillingGracePeriod?
+  apiUsageEvents         ApiUsageEvent[]
 
   @@map("organizations")
 }
@@ -327,4 +332,70 @@ model AgentSchedule {
   @@unique([organizationId])
   @@index([isEnabled, cadenceMinutes])
   @@map("agent_schedules")
+}
+
+model BillingInvoice {
+  id                String   @id
+  organizationId    String   @map("organization_id")
+  provider          String
+  providerReference String?  @map("provider_reference")
+  amountMinor       Int      @default(0) @map("amount_minor")
+  currency          String   @default("NGN")
+  status            String
+  issuedAt          DateTime @default(now()) @map("issued_at")
+  paidAt            DateTime? @map("paid_at")
+  metadata          Json?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerReference])
+  @@index([organizationId, issuedAt(sort: Desc)])
+  @@map("billing_invoices")
+}
+
+model PaymentEvent {
+  id              String   @id
+  organizationId  String?  @map("organization_id")
+  provider        String
+  eventType       String   @map("event_type")
+  providerEventId String?  @map("provider_event_id")
+  payload         Json
+  processedAt     DateTime @default(now()) @map("processed_at")
+  isValid         Boolean  @map("is_valid")
+  validationError String?  @map("validation_error")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerEventId])
+  @@index([organizationId, processedAt(sort: Desc)])
+  @@map("payment_events")
+}
+
+model BillingGracePeriod {
+  id                String   @id
+  organizationId    String   @unique @map("organization_id")
+  provider          String
+  providerReference String?  @map("provider_reference")
+  graceEndsAt       DateTime @map("grace_ends_at")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([graceEndsAt])
+  @@map("billing_grace_periods")
+}
+
+model ApiUsageEvent {
+  id             String   @id
+  organizationId String   @map("organization_id")
+  method         String
+  path           String
+  statusCode     Int      @map("status_code")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("api_usage_events")
 }

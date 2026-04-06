@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { canTriggerAgents, getSessionRole } from '@/lib/rbac'
 
 type AgentRun = {
   id: string
@@ -76,13 +77,17 @@ export default function AgentsPage() {
   const { data: session } = useSession()
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
+  const userRole = getSessionRole(session)
+  const canRunAgents = canTriggerAgents(userRole)
 
   const [runs, setRuns] = useState<AgentRun[]>([])
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [runAllLoading, setRunAllLoading] = useState(false)
+  const [runAllMessage, setRunAllMessage] = useState('')
 
-  useEffect(() => {
+  const loadAgentData = useCallback(async () => {
     if (!accessToken) {
       return
     }
@@ -91,31 +96,61 @@ export default function AgentsPage() {
     headers.set('Authorization', `Bearer ${accessToken}`)
     headers.set('Content-Type', 'application/json')
 
-    async function loadAgentData() {
-      setLoading(true)
-      setError('')
-      try {
-        const [runsRes, recsRes] = await Promise.all([
-          fetch(`${apiBase}/api/v1/agent-runs`, { headers }),
-          fetch(`${apiBase}/api/v1/recommendations`, { headers }),
-        ])
+    setLoading(true)
+    setError('')
+    try {
+      const [runsRes, recsRes] = await Promise.all([
+        fetch(`${apiBase}/api/v1/agent-runs`, { headers }),
+        fetch(`${apiBase}/api/v1/recommendations`, { headers }),
+      ])
 
-        if (!runsRes.ok || !recsRes.ok) {
-          throw new Error('Failed to load agent data')
-        }
-
-        const [runsPayload, recsPayload] = await Promise.all([runsRes.json(), recsRes.json()])
-        setRuns(asList<AgentRun>(runsPayload))
-        setRecommendations(asList<Recommendation>(recsPayload))
-      } catch {
-        setError('Unable to load live agent status right now.')
-      } finally {
-        setLoading(false)
+      if (!runsRes.ok || !recsRes.ok) {
+        throw new Error('Failed to load agent data')
       }
+
+      const [runsPayload, recsPayload] = await Promise.all([runsRes.json(), recsRes.json()])
+      setRuns(asList<AgentRun>(runsPayload))
+      setRecommendations(asList<Recommendation>(recsPayload))
+    } catch {
+      setError('Unable to load live agent status right now.')
+    } finally {
+      setLoading(false)
+    }
+  }, [accessToken, apiBase])
+
+  useEffect(() => {
+    void loadAgentData()
+  }, [loadAgentData])
+
+  async function runAllAgents() {
+    if (!canRunAgents || runAllLoading) {
+      return
     }
 
-    void loadAgentData()
-  }, [accessToken, apiBase])
+    setRunAllLoading(true)
+    setRunAllMessage('')
+
+    try {
+      const response = await fetch('/api/agents/run-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ period: 'last_30_days' }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Run all failed')
+      }
+
+      setRunAllMessage('Agent runs started. Refreshing statuses...')
+      await loadAgentData()
+    } catch {
+      setRunAllMessage('Unable to trigger agents right now. Try again shortly.')
+    } finally {
+      setRunAllLoading(false)
+    }
+  }
 
   const agentCards = useMemo(() => {
     return AGENTS.map((agent) => {
@@ -136,8 +171,24 @@ export default function AgentsPage() {
   return (
     <div className="space-y-6">
       <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900">Agents</h1>
-        <p className="mt-2 text-sm text-slate-600">Monitor all 7 agents, inspect latest run outcomes, and open detailed recommendations.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Agents</h1>
+            <p className="mt-2 text-sm text-slate-600">Monitor all 7 agents, inspect latest run outcomes, and open detailed recommendations.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void runAllAgents()}
+              disabled={!canRunAgents || runAllLoading}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {runAllLoading ? 'Starting...' : 'Run All Agents'}
+            </button>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">Role: {userRole} {canRunAgents ? '' : '(run actions disabled)'}</p>
+        {runAllMessage ? <p className="mt-1 text-xs text-slate-600">{runAllMessage}</p> : null}
       </header>
 
       {error ? (

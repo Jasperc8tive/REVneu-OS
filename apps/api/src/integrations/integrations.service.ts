@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '@revneu/database'
 import axios from 'axios'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
+import { BillingService } from '../billing/billing.service'
 import { SyncQueueService } from '../workers/sync.queue.service'
 import { CreateIntegrationDto } from './dto/create-integration.dto'
 
@@ -31,6 +32,7 @@ interface OAuthStatePayload {
 export class IntegrationsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly billingService: BillingService,
     private readonly syncQueueService: SyncQueueService,
   ) {}
 
@@ -59,6 +61,8 @@ export class IntegrationsService {
     userId: string,
     dto: CreateIntegrationDto,
   ) {
+    await this.billingService.assertWithinLimit(organizationId, 'integrations')
+
     const encryptedCredentials = this.encryptCredentials(dto.credentials)
 
     return this.prisma.integrationConnection.create({

@@ -1,4 +1,5 @@
 import { AgentRunsService } from './agent-runs.service'
+import { ForbiddenException } from '@nestjs/common'
 
 describe('AgentRunsService', () => {
   const prismaMock = {
@@ -8,14 +9,27 @@ describe('AgentRunsService', () => {
     },
   }
 
+  const billingServiceMock = {
+    assertWithinLimit: jest.fn(),
+  }
+
+  const eventEmitterMock = {
+    emit: jest.fn(),
+  }
+
   let service: AgentRunsService
 
   beforeEach(() => {
     jest.clearAllMocks()
-    service = new AgentRunsService(prismaMock as never)
+    service = new AgentRunsService(
+      prismaMock as never,
+      billingServiceMock as never,
+      eventEmitterMock as never,
+    )
   })
 
   it('creates an agent run record', async () => {
+    prismaMock.agentRun.findMany.mockResolvedValue([{ agentId: 'marketing_performance' }])
     prismaMock.agentRun.create.mockResolvedValue({ id: 'run-1' })
 
     await service.createRun({
@@ -39,6 +53,15 @@ describe('AgentRunsService', () => {
         }),
       }),
     )
+
+    expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+      'audit',
+      expect.objectContaining({
+        organizationId: 'org-1',
+        action: 'agent_run.created',
+        resourceType: 'agent_run',
+      }),
+    )
   })
 
   it('lists runs scoped by organization and optional agent', async () => {
@@ -54,5 +77,35 @@ describe('AgentRunsService', () => {
         },
       }),
     )
+
+    expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+      'audit',
+      expect.objectContaining({
+        organizationId: 'org-1',
+        action: 'agent_run.listed',
+      }),
+    )
+  })
+
+  it('blocks creating a third+ distinct agent run for STARTER when plan limit is exceeded', async () => {
+    prismaMock.agentRun.findMany.mockResolvedValue([
+      { agentId: 'marketing_performance' },
+      { agentId: 'customer_acquisition' },
+    ])
+    billingServiceMock.assertWithinLimit.mockRejectedValue(
+      new ForbiddenException('Plan limit exceeded for agents. Upgrade required.'),
+    )
+
+    await expect(
+      service.createRun({
+        organizationId: 'org-starter',
+        agentId: 'sales_pipeline',
+        period: 'last_30_days',
+        status: 'QUEUED',
+        metadata: {},
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+
+    expect(prismaMock.agentRun.create).not.toHaveBeenCalled()
   })
 })

@@ -5,15 +5,18 @@ import { RateLimitService } from '../services/rate-limit.service'
 export class RateLimitGuard implements CanActivate {
   constructor(private rateLimitService: RateLimitService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest()
     const tenantId = request.user?.organizationId || request.headers['x-api-key']
 
-    if (!tenantId) {
-      return true // Allow unauthenticated requests
-    }
+    // Fall back to client IP so unauthenticated endpoints (login/register) are
+    // also protected against brute-force attacks.
+    const bucketKey = tenantId ||
+      request.ip ||
+      request.headers['x-forwarded-for'] ||
+      'unknown'
 
-    const allowed = this.rateLimitService.checkRateLimit(tenantId)
+    const allowed = await this.rateLimitService.checkRateLimit(String(bucketKey))
     if (!allowed) {
       throw new HttpException('Rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS)
     }

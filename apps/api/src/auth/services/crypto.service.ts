@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common'
 import { createHash, randomBytes } from 'crypto'
+import * as bcrypt from 'bcrypt'
 
 @Injectable()
 export class CryptoService {
-  hashPassword(password: string): string {
-    return createHash('sha256').update(password).digest('hex')
+  private readonly SALT_ROUNDS = 12
+
+  async hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, this.SALT_ROUNDS)
   }
 
-  verifyPassword(password: string, hash: string): boolean {
-    return this.hashPassword(password) === hash
+  async verifyPassword(password: string, hash: string): Promise<boolean> {
+    return bcrypt.compare(password, hash)
   }
 
   hashToken(token: string): string {

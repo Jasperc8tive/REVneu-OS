@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { canManageIntegrations, canOperateIntegrations, getSessionRole } from '@/lib/rbac'
 
 type IntegrationSource =
   | 'GA4'
@@ -44,6 +45,9 @@ type SyncHistoryRecord = {
 
 export default function IntegrationsPage() {
   const { data: session } = useSession()
+  const role = getSessionRole(session)
+  const canConnectIntegrations = canManageIntegrations(role)
+  const canRunSync = canOperateIntegrations(role)
 
   const [source, setSource] = useState<IntegrationSource>('GA4')
   const [displayName, setDisplayName] = useState('')
@@ -130,6 +134,11 @@ export default function IntegrationsPage() {
 
   const handleConnect = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!canConnectIntegrations) {
+      setMessage('Your role does not allow creating integrations.')
+      return
+    }
+
     setMessage('')
     setLoading(true)
 
@@ -184,6 +193,11 @@ export default function IntegrationsPage() {
   }
 
   const triggerSync = async (integrationId: string) => {
+    if (!canRunSync) {
+      setMessage('Your role does not allow triggering sync.')
+      return
+    }
+
     setMessage('')
 
     const response = await apiFetch(`/api/v1/integrations/${integrationId}/sync`, {
@@ -245,6 +259,9 @@ export default function IntegrationsPage() {
         <p className="mt-2 text-sm text-slate-600">
           Connect data sources, run manual sync, and inspect integration health/sync history.
         </p>
+        <p className="mt-2 text-xs text-slate-500">
+          Role: {role}. Connect actions require OWNER or ADMIN. Manual sync requires OWNER, ADMIN, or ANALYST.
+        </p>
       </header>
 
       <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -256,6 +273,7 @@ export default function IntegrationsPage() {
             <select
               value={source}
               onChange={(event) => setSource(event.target.value as IntegrationSource)}
+              disabled={!canConnectIntegrations}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none"
             >
               {SOURCE_OPTIONS.map((option) => (
@@ -272,6 +290,7 @@ export default function IntegrationsPage() {
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               placeholder={sourceLabel}
+              disabled={!canConnectIntegrations}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none"
             />
           </label>
@@ -282,7 +301,7 @@ export default function IntegrationsPage() {
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               required={source === 'PAYSTACK' || source === 'HUBSPOT' || source === 'STRIPE'}
-              disabled={source === 'GA4' || source === 'META_ADS' || source === 'GOOGLE_ADS'}
+              disabled={!canConnectIntegrations || source === 'GA4' || source === 'META_ADS' || source === 'GOOGLE_ADS'}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none"
               placeholder={
                 source === 'GA4' || source === 'META_ADS' || source === 'GOOGLE_ADS'
@@ -300,14 +319,15 @@ export default function IntegrationsPage() {
               max={1440}
               value={syncIntervalMinutes}
               onChange={(event) => setSyncIntervalMinutes(Number(event.target.value) || 60)}
+              disabled={!canConnectIntegrations}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none"
             />
           </label>
 
           <button
             type="submit"
-            disabled={!accessToken || loading}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+            disabled={!accessToken || loading || !canConnectIntegrations}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {source === 'GA4' || source === 'META_ADS' || source === 'GOOGLE_ADS'
               ? (loading ? 'Launching OAuth...' : 'Connect with OAuth')
@@ -364,7 +384,8 @@ export default function IntegrationsPage() {
                     <button
                       type="button"
                       onClick={() => void triggerSync(integration.id)}
-                      className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white"
+                      disabled={!canRunSync}
+                      className="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Sync Now
                     </button>

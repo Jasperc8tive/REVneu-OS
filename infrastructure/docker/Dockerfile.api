@@ -18,12 +18,14 @@ COPY packages/database/ ./packages/database/
 COPY packages/shared/ ./packages/shared/
 COPY apps/api/ ./apps/api/
 
-# Generate Prisma client
-RUN cd packages/database && npx prisma generate
+# Build database package, generate Prisma client, and compile API once during image build.
+RUN cd packages/database && npm run build && npx prisma generate
+RUN node -e "const fs=require('fs');const p='packages/database/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.main='./dist/index.js';j.types='./dist/index.d.ts';j.exports={'.':'./dist/index.js'};fs.writeFileSync(p,JSON.stringify(j,null,2));"
+RUN cd apps/api && npm run build
 
 WORKDIR /workspace/apps/api
 EXPOSE 4000
-CMD ["npm", "run", "dev"]
+CMD ["node", "dist/main.js"]
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 FROM base AS builder
@@ -43,7 +45,6 @@ ENV NODE_ENV=production
 
 COPY --from=builder /workspace/apps/api/dist ./dist
 COPY --from=builder /workspace/node_modules ./node_modules
-COPY --from=builder /workspace/packages/database/node_modules/.prisma ./.prisma
 
 EXPOSE 4000
 CMD ["node", "dist/main"]

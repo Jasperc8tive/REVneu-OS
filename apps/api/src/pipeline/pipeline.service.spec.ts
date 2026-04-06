@@ -185,4 +185,41 @@ describe('PipelineService', () => {
       }),
     )
   })
+
+  it('moves a terminally failing run to DEAD_LETTER and does not rethrow', async () => {
+    prismaMock.integrationSyncRun.findUnique.mockResolvedValue({
+      id: 'sync-3',
+      organizationId: 'org-1',
+      integrationId: 'int-3',
+      retryCount: 2,
+      integration: {
+        id: 'int-3',
+        source: 'PAYSTACK',
+        encryptedCredentials: 'encrypted-old',
+        errorCount: 2,
+      },
+    })
+
+    prismaMock.integrationSyncRun.update.mockResolvedValue(undefined)
+    prismaMock.integrationConnection.update.mockResolvedValue(undefined)
+
+    const privateApi = getPrivateApi(service)
+    jest.spyOn(privateApi, 'decryptCredentials').mockReturnValue({ apiKey: 'pk_test' })
+    connectorsServiceMock.fetchRawMetrics.mockRejectedValue(new Error('upstream timeout'))
+
+    await expect(service.runSyncRun('sync-3')).resolves.toBeUndefined()
+
+    expect(prismaMock.integrationSyncRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'sync-3' },
+        data: expect.objectContaining({
+          status: 'DEAD_LETTER',
+          retryCount: 3,
+          errorMessage: 'upstream timeout',
+        }),
+      }),
+    )
+
+    expect(observabilityMock.recordSyncOutcome).toHaveBeenCalledWith('DEAD_LETTER')
+  })
 })

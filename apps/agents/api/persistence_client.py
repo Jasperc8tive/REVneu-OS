@@ -148,7 +148,7 @@ class AgentPersistenceClient:
             "tokensUsed": run.tokens_used,
             "tokenCostUsd": run.token_cost_usd,
             "error": run.error,
-            "metadata": {"run_id": run.run_id},
+            "metadata": run.metadata or {"run_id": run.run_id},
         }
 
         return await self._post_with_retry(
@@ -205,6 +205,7 @@ class AgentPersistenceClient:
                     tokens_used=item.get("tokensUsed", 0),
                     token_cost_usd=float(item.get("tokenCostUsd", 0.0)),
                     error=item.get("error"),
+                    metadata=item.get("metadata") or {},
                 )
                 for item in records
             ]

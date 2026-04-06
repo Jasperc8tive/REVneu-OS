@@ -13,7 +13,6 @@ RUN npm install --workspace=@revneu/web --workspace=@revneu/shared
 # ── Development ───────────────────────────────────────────────────────────────
 FROM base AS development
 COPY --from=deps /workspace/node_modules ./node_modules
-COPY --from=deps /workspace/apps/web/node_modules ./apps/web/node_modules
 COPY packages/shared/ ./packages/shared/
 COPY apps/web/ ./apps/web/
 WORKDIR /workspace/apps/web
@@ -27,6 +26,7 @@ COPY packages/shared/ ./packages/shared/
 COPY apps/web/ ./apps/web/
 WORKDIR /workspace/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_BUILD_STANDALONE=true
 RUN npm run build
 
 # ── Production ────────────────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+COPY --from=deps /workspace/node_modules ./node_modules
 COPY --from=builder /workspace/apps/web/.next/standalone ./
 COPY --from=builder /workspace/apps/web/.next/static ./.next/static
 COPY --from=builder /workspace/apps/web/public ./public

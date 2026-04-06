@@ -9,6 +9,8 @@ import {
 import type { Request } from 'express'
 import { AuthService, AuthResponse, LoginDto, RefreshTokenDto, RegisterDto } from './services/auth.service'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
+import { User } from './decorators/user.decorator'
+import type { JwtPayload } from './strategies/jwt.strategy'
 
 @Controller('auth')
 export class AuthController {
@@ -44,9 +46,9 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
-  async logout(): Promise<void> {
-    // Logout implementation will write session.isRevoked = true
-    // For now, accept the logout request
-    return
+  async logout(@User() user: JwtPayload): Promise<void> {
+    if (user.sessionId) {
+      await this.authService.logout(user.sessionId)
+    }
   }
 }

@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
+import Redis from 'ioredis'
 
 @Injectable()
-export class RateLimitService {
+export class RateLimitService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(RateLimitService.name)
+  private redisClient: Redis | null = null
+
   private readonly requests: Map<
     string,
     { count: number; resetAt: number }
@@ -11,9 +15,54 @@ export class RateLimitService {
   private readonly RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
   private readonly RATE_LIMIT_MAX_REQUESTS = 100 // per minute per tenant
 
-  checkRateLimit(tenantId: string): boolean {
+  async onModuleInit(): Promise<void> {
+    const redisUrl = process.env.REDIS_URL?.trim()
+    if (!redisUrl) {
+      this.logger.warn('REDIS_URL not configured; falling back to in-memory rate limiting')
+      return
+    }
+
+    try {
+      this.redisClient = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+      })
+      await this.redisClient.connect()
+      this.logger.log('Redis-backed rate limiting enabled')
+    } catch (error) {
+      this.logger.warn('Failed to connect to Redis; falling back to in-memory rate limiting')
+      this.redisClient = null
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.redisClient) {
+      await this.redisClient.quit()
+    }
+  }
+
+  async checkRateLimit(bucketId: string): Promise<boolean> {
+    if (this.redisClient) {
+      try {
+        const key = `rate_limit:${bucketId}`
+        const count = await this.redisClient.incr(key)
+
+        if (count === 1) {
+          await this.redisClient.pexpire(key, this.RATE_LIMIT_WINDOW)
+        }
+
+        return count <= this.RATE_LIMIT_MAX_REQUESTS
+      } catch {
+        this.logger.warn('Redis rate limit check failed; using in-memory fallback')
+      }
+    }
+
+    return this.checkRateLimitInMemory(bucketId)
+  }
+
+  private checkRateLimitInMemory(bucketId: string): boolean {
     const now = Date.now()
-    const key = tenantId
+    const key = bucketId
     const record = this.requests.get(key)
 
     if (!record || now > record.resetAt) {

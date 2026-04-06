@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 
+const authErrorMessages: Record<string, string> = {
+  CredentialsSignin: 'Invalid email or password',
+  AccessDenied: 'Access denied. Please contact your administrator.',
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -25,7 +30,7 @@ export default function LoginPage() {
       })
 
       if (result?.error) {
-        setError(result.error || 'Invalid email or password')
+        setError(authErrorMessages[result.error] ?? 'Unable to sign in right now. Please try again.')
         return
       }
 

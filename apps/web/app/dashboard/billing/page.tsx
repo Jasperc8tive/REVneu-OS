@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { canManageBilling, getSessionRole } from '@/lib/rbac'
+import { resolveApiBaseUrl } from '@/lib/api-base-url'
 
 type BillingPlan = {
   id: string
@@ -19,13 +21,31 @@ type Subscription = {
   organizationId: string
   planId: string
   planName: string
-  status: 'ACTIVE' | 'INACTIVE' | 'PAST_DUE' | 'CANCELED'
+  status: 'ACTIVE' | 'INACTIVE' | 'PAST_DUE' | 'CANCELED' | 'TRIAL'
   currentPeriodStart: string
   currentPeriodEnd: string
   billedAt?: string | null
   nextBillingDate?: string | null
   amountPaid: number
   currency: string
+}
+
+type UsageSummary = {
+  tier: string
+  status: string
+  limits: {
+    maxUsers: number
+    maxIntegrations: number
+    maxAgents: number
+  }
+  usage: {
+    users: number
+    integrations: number
+    agents: number
+    agentRunsWindow?: number
+    apiCallsWindow?: number
+    windowDays?: number
+  }
 }
 
 type Invoice = {
@@ -71,18 +91,29 @@ function asList<T>(payload: unknown): T[] {
 }
 
 export default function BillingPage() {
-  const { data: session } = useSession()
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+  const { data: session, status } = useSession()
+  const role = getSessionRole(session)
+  const canStartCheckout = canManageBilling(role)
+  const apiBase = resolveApiBaseUrl()
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
 
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [plans, setPlans] = useState<BillingPlan[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (status === 'loading') {
+      return
+    }
+
     if (!accessToken) {
+      setLoading(false)
+      setError('Your session has expired. Please sign in again.')
       return
     }
 
@@ -94,10 +125,11 @@ export default function BillingPage() {
       setLoading(true)
       setError('')
       try {
-        const [subRes, plansRes, invoicesRes] = await Promise.all([
+        const [subRes, plansRes, invoicesRes, usageRes] = await Promise.all([
           fetch(`${apiBase}/api/v1/billing/subscription`, { headers }),
           fetch(`${apiBase}/api/v1/billing/plans`, { headers }),
           fetch(`${apiBase}/api/v1/billing/invoices`, { headers }),
+          fetch(`${apiBase}/api/v1/billing/usage`, { headers }),
         ])
 
         if (!subRes.ok && subRes.status !== 404) {
@@ -124,6 +156,15 @@ export default function BillingPage() {
           const invoicesList = asList<Invoice>(invoicesPayload)
           setInvoices(invoicesList)
         }
+
+        if (usageRes.ok) {
+          const usagePayload = await usageRes.json()
+          const usageData =
+            usagePayload && typeof usagePayload === 'object' && 'data' in usagePayload
+              ? ((usagePayload as { data?: UsageSummary | null }).data ?? null)
+              : (usagePayload as UsageSummary)
+          setUsage(usageData)
+        }
       } catch {
         setError('Unable to load billing data right now.')
       } finally {
@@ -132,7 +173,92 @@ export default function BillingPage() {
     }
 
     void loadBillingData()
-  }, [accessToken, apiBase])
+  }, [accessToken, apiBase, status])
+
+  async function startCheckout(planId: string, provider: 'paystack' | 'stripe') {
+    if (!canStartCheckout) {
+      setError('Your role does not allow plan upgrades.')
+      return
+    }
+
+    if (!accessToken || !session?.user?.email) {
+      setError('Missing user session for checkout.')
+      return
+    }
+
+    setCheckoutLoading(`${provider}:${planId}`)
+    setError('')
+
+    try {
+      const response = await fetch(`${apiBase}/api/v1/billing/checkout/${provider}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planId,
+          email: session.user.email,
+          callbackUrl: `${window.location.origin}/dashboard/billing`,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Checkout initialization failed')
+      }
+
+      const payload = await response.json()
+      const data = payload && typeof payload === 'object' && 'data' in payload
+        ? (payload as { data?: { checkoutUrl?: string } }).data
+        : (payload as { checkoutUrl?: string })
+
+      if (!data?.checkoutUrl) {
+        throw new Error('Checkout URL missing')
+      }
+
+      window.location.href = data.checkoutUrl
+    } catch {
+      setError('Unable to start checkout right now. Please try again.')
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
+
+  async function downloadInvoicePdf(invoiceId: string) {
+    if (!accessToken) {
+      setError('Missing user session for invoice download.')
+      return
+    }
+
+    setDownloadingInvoiceId(invoiceId)
+    setError('')
+
+    try {
+      const response = await fetch(`${apiBase}/api/v1/billing/invoices/${invoiceId}/pdf`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to download invoice')
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = `invoice-${invoiceId.slice(0, 8)}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      setError('Unable to download invoice right now. Please try again.')
+    } finally {
+      setDownloadingInvoiceId(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -141,6 +267,7 @@ export default function BillingPage() {
         <p className="mt-2 text-sm text-slate-600">
           Track plan, usage, and upgrade options for your organization.
         </p>
+        <p className="mt-2 text-xs text-slate-500">Role: {role}. Upgrades are limited to OWNER and ADMIN.</p>
       </header>
 
       {error ? (
@@ -184,6 +311,19 @@ export default function BillingPage() {
             <h2 className="text-lg font-semibold text-slate-900 mb-4">
               Available Plans
             </h2>
+            {usage ? (
+              <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+                <p>
+                  Current tier: <strong>{usage.tier}</strong> ({usage.status})
+                </p>
+                <p className="mt-1">
+                  Usage: {usage.usage.users}/{usage.limits.maxUsers} users, {usage.usage.integrations}/{usage.limits.maxIntegrations} integrations, {usage.usage.agents}/{usage.limits.maxAgents} agents
+                </p>
+                <p className="mt-1">
+                  Metering ({usage.usage.windowDays ?? 30} days): {usage.usage.agentRunsWindow ?? 0} agent runs, {usage.usage.apiCallsWindow ?? 0} API calls
+                </p>
+              </div>
+            ) : null}
             {plans.length === 0 ? (
               <p className="text-sm text-slate-600">
                 Plan information not available.
@@ -220,6 +360,24 @@ export default function BillingPage() {
                         {plan.description}
                       </p>
                     ) : null}
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void startCheckout(plan.id, 'paystack')}
+                        disabled={checkoutLoading !== null || !canStartCheckout}
+                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        {checkoutLoading === `paystack:${plan.id}` ? 'Starting...' : 'Paystack'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void startCheckout(plan.id, 'stripe')}
+                        disabled={checkoutLoading !== null || !canStartCheckout}
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                      >
+                        {checkoutLoading === `stripe:${plan.id}` ? 'Starting...' : 'Stripe'}
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>
@@ -238,6 +396,7 @@ export default function BillingPage() {
                       <th className="py-3 px-4">Date</th>
                       <th className="py-3 px-4">Amount</th>
                       <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -253,6 +412,16 @@ export default function BillingPage() {
                           <span className="inline-flex rounded px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-700">
                             {invoice.status}
                           </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => void downloadInvoicePdf(invoice.id)}
+                            disabled={downloadingInvoiceId === invoice.id}
+                            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                          >
+                            {downloadingInvoiceId === invoice.id ? 'Downloading...' : 'Download PDF'}
+                          </button>
                         </td>
                       </tr>
                     ))}

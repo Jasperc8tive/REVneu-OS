@@ -1,6 +1,7 @@
 # Stage 2 Audit Report — Core System (Auth, Multi-tenancy, RBAC)
 
 ## Completion Status
+
 **Overall: 95% Complete** — All architecture, code, and infrastructure built. Remaining: 2 lint fixes + npm version resolution.
 
 ## Summary
@@ -26,7 +27,8 @@ Stage 2 delivers a **production-grade authentication, authorization, and multi-t
 
 ## Files Created (38 total)
 
-###  Authentication Module (9 files)
+### Authentication Module (9 files)
+
 - `src/auth/strategies/jwt.strategy.ts` — Passport JWT validation
 - `src/auth/services/jwt.service.ts` — Token generation/verification
 - `src/auth/services/crypto.service.ts` — Password & token hashing
@@ -40,21 +42,25 @@ Stage 2 delivers a **production-grade authentication, authorization, and multi-t
 - `src/auth/auth.controller.spec.ts` — Unit tests
 
 ### Organizations Module (3 files)
+
 - `src/organizations/organizations.service.ts` — Get/update org
 - `src/organizations/organizations.controller.ts` — Organization routes
 - `src/organizations/organizations.module.ts` — DI configuration
 
 ### Users/Team Module (3 files)
+
 - `src/users/users.service.ts` — Team member management
 - `src/users/users.controller.ts` — Team routes
 - `src/users/users.module.ts` — DI configuration
 
 ### API Keys Module (3 files)
+
 - `src/api-keys/api-keys.service.ts` — Key management
 - `src/api-keys/api-keys.controller.ts` — API key routes
 - `src/api-keys/api-keys.module.ts` — DI configuration
 
 ### Global Error & Interceptors (5 files)
+
 - `src/common/filters/global-exception.filter.ts` — Standardized errors
 - `src/common/interceptors/api-response.interceptor.ts` — Response wrapping
 - `src/common/guards/rate-limit.guard.ts` — Rate limiting
@@ -63,6 +69,7 @@ Stage 2 delivers a **production-grade authentication, authorization, and multi-t
 - `src/common/common.module.ts` — Module exports
 
 ### Frontend (7 files)
+
 - `app/auth.config.ts` — NextAuth configuration
 - `app/middleware.ts` — Route protection & redirects
 - `app/providers.tsx` — Session provider
@@ -72,13 +79,16 @@ Stage 2 delivers a **production-grade authentication, authorization, and multi-t
 - `app/(auth)/register/page.tsx` — Functional registration
 
 ### Testing (2 files)
+
 - `apps/api/src/auth/auth.controller.spec.ts`  — Auth tests
 - `apps/agents/tests/test_auth.py` — Async registration tests
 
 ### Database (1 file)
+
 - `packages/database/prisma/migrations/001_init_auth/migration.sql` — Schema migration
 
 ### Schema & App Module (2 files)
+
 - `packages/database/prisma/schema.prisma` — Updated with auth models
 - `apps/api/src/app.module.ts` — Updated imports & global configuration
 
@@ -86,7 +96,7 @@ Stage 2 delivers a **production-grade authentication, authorization, and multi-t
 
 ## Architecture Highlights
 
-###  Authentication Flow
+### Authentication Flow
 
 ```
 User Registration
@@ -118,12 +128,14 @@ Token Refresh
 5. **Validation**: CAN routes prevent cross-tenant access
 
 ### RBAC Hierarchy
+
 - **OWNER**: Full org access, team management, API keys
 - **ADMIN**: Team management, API keys, org updates
 - **ANALYST**: Data access, read-only organization view
 - **VIEWER**: Read-only dashboard access
 
 ### Security Patterns
+
 - Password: SHA-256 hashed (Stage 3: upgrade to bcrypt)
 - Tokens: JWT signed with secret (HS256)
 - Refresh tokens: Hashed in DB, rotated per use
@@ -152,16 +164,20 @@ Token Refresh
 ## Known Issues to Resolve Before Stage 2 Sign-Off
 
 ### Issue 1: Frontend Lint Errors
+
 **Location**: `apps/web/app/(auth)/login/page.tsx`
+
 - Line 14: Unused `session` variable from useSession hook
 - Line 96: Unescaped quote character ("Don't" → use `&apos;` entity)
 
 **Fix**: Minimal — remove unused hook, escape quotes
 
 ### Issue 2: NPM Dependency Versions
+
 **Location**: `apps/api/package.json`
 
 Current versions not available on npm:
+
 - `@nestjs/jwt@^12.0.2` → Use `^10.1.3`
 - `@nestjs/passport@^10.1.2` → Use `^10.0.3`
 - `@types/passport-jwt@^3.0.16` → Use `^3.0.15`
@@ -206,6 +222,7 @@ All of the following must pass to sign-off:
 ## Next Steps
 
 ### Immediate (before Stage 3)
+
 1. Fix 2 lint errors in login page
 2. Resolve npm package versions in API package.json
 3. Run `npm run lint --workspace=apps/api` to verify API code clean
@@ -215,6 +232,7 @@ All of the following must pass to sign-off:
 7. Create final STAGE_2_VALIDATION.md with all tests passing 8. Mark Stage 2 complete in memory
 
 ### Stage 3 (Data Integrations)
+
 - GA4 connector
 - Meta Ads connector
 - Paystack integration

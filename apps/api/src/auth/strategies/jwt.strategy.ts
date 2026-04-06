@@ -9,6 +9,7 @@ export interface JwtPayload {
   email: string
   organizationId: string
   role: string
+  sessionId?: string
   iat?: number
   exp?: number
 }

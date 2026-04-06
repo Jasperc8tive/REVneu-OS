@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { RevenueTrendChart } from '@/components/charts/revenue-trend-chart'
+import { SourceConversionFunnel } from '@/components/charts/source-conversion-funnel'
 
 type AgentRun = {
   id: string
@@ -21,6 +23,7 @@ type Recommendation = {
 
 type MetricRecord = {
   id: string
+  source?: string
   metricType: string
   value: number
   recordedAt: string
@@ -142,6 +145,54 @@ export default function DashboardPage() {
     }
   }, [metrics, recommendations.length, runs])
 
+  const trendData = useMemo(() => {
+    const bucket = new Map<string, { revenue: number; spend: number }>()
+    const recent = metrics
+      .slice()
+      .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+      .slice(-400)
+
+    for (const metric of recent) {
+      const day = new Date(metric.recordedAt).toISOString().slice(0, 10)
+      const current = bucket.get(day) ?? { revenue: 0, spend: 0 }
+
+      if (metric.metricType === 'REVENUE') {
+        current.revenue += metric.value
+      }
+      if (metric.metricType === 'SPEND') {
+        current.spend += metric.value
+      }
+
+      bucket.set(day, current)
+    }
+
+    return Array.from(bucket.entries())
+      .slice(-14)
+      .map(([day, values]) => ({
+        day: day.slice(5),
+        revenue: values.revenue,
+        spend: values.spend,
+      }))
+  }, [metrics])
+
+  const sourceFunnelData = useMemo(() => {
+    const bySource = new Map<string, number>()
+
+    for (const metric of metrics) {
+      if (metric.metricType !== 'CONVERSIONS') {
+        continue
+      }
+
+      const source = metric.source ?? 'UNKNOWN'
+      bySource.set(source, (bySource.get(source) ?? 0) + metric.value)
+    }
+
+    return Array.from(bySource.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, value]) => ({ name, value }))
+  }, [metrics])
+
   const alerts = useMemo(() => {
     const summaries = recommendations
       .map((item) => item.summary?.trim())
@@ -204,6 +255,22 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <article className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Revenue vs Spend Trend (14 days)</h2>
+          <p className="mt-1 text-xs text-slate-500">Live rollup from normalized metric stream</p>
+          <div className="mt-4">
+            <RevenueTrendChart data={trendData} />
+          </div>
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Top Conversion Sources</h2>
+          <p className="mt-1 text-xs text-slate-500">Funnel view by channel contribution</p>
+          <div className="mt-4">
+            <SourceConversionFunnel data={sourceFunnelData} />
+          </div>
+        </article>
+
         <article className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Critical Alerts</h2>
           <ul className="mt-4 space-y-3">
