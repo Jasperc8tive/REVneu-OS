@@ -3,5 +3,10 @@
     "json.schemaDownload.enable": false,
     "files.associations": {
         "**/packages/database/prisma/migrations/**/*.sql": "plaintext"
+    },
+    "files.exclude": {
+        "**/.lighthouseci": true,
+        "**/.next": true,
+        "**/.turbo": true
     }
 }

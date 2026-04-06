@@ -3,8 +3,8 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from main import app
 from api.routes import runtime
+from main import app
 
 TEST_AGENT_KEY = "stage4-test-agent-key-1234567890"
 

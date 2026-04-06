@@ -5,9 +5,12 @@
   "scripts": {
     "dev": "uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
     "start": "uvicorn main:app --host 0.0.0.0 --port 8000",
-    "lint": "python -m ruff check . || echo [Stage 1] Agents lint skipped: install Python deps to enable",
-    "lint:fix": "python -m ruff check . --fix || echo [Stage 1] Agents lint fix skipped",
-    "format": "python -m ruff format . || echo [Stage 1] Agents format skipped",
+    "lint": "python -m ruff check .",
+    "lint:local": "python -m ruff check . || echo [Stage 1] Agents lint skipped: install Python deps to enable",
+    "lint:fix": "python -m ruff check . --fix",
+    "lint:fix:local": "python -m ruff check . --fix || echo [Stage 1] Agents lint fix skipped",
+    "format": "python -m ruff format .",
+    "format:local": "python -m ruff format . || echo [Stage 1] Agents format skipped",
     "test": "python -m pytest || echo [Stage 1] Agents tests skipped: install Python deps to enable"
   }
 }

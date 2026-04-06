@@ -25,6 +25,27 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
 import { UsersModule } from './users/users.module'
 import { WorkersModule } from './workers/workers.module'
 
+function getRedisConnectionConfig(): { host: string; port: number } {
+  const redisUrl = process.env.REDIS_URL?.trim()
+
+  if (redisUrl) {
+    try {
+      const parsed = new URL(redisUrl)
+      return {
+        host: parsed.hostname,
+        port: parsed.port ? parseInt(parsed.port, 10) : 6379,
+      }
+    } catch {
+      // Fall back to explicit host/port values if REDIS_URL is malformed.
+    }
+  }
+
+  return {
+    host: process.env.REDIS_HOST ?? 'localhost',
+    port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
+  }
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -32,10 +53,7 @@ import { WorkersModule } from './workers/workers.module'
       envFilePath: ['.env.local', '.env'],
     }),
     BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST ?? 'localhost',
-        port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-      },
+      connection: getRedisConnectionConfig(),
     }),
     EventEmitterModule.forRoot(),
     DatabaseModule,

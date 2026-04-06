@@ -19,9 +19,11 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
 ]
 
+const isStandaloneBuild = process.env.NEXT_BUILD_STANDALONE === 'true'
+
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
+  output: isStandaloneBuild ? 'standalone' : undefined,
   transpilePackages: ['@revneu/shared'],
   async headers() {
     return [
