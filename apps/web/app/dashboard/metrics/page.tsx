@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { resolveApiBaseUrl } from '@/lib/api-base-url'
+import { formatCount, formatNaira } from '@/lib/formatters'
 
 type MetricRecord = {
   id: string
@@ -16,21 +18,16 @@ type MetricRecord = {
 }
 
 function formatValue(value: number, metricType: string): string {
+  const type = metricType.toUpperCase()
   if (
-    metricType === 'spend' ||
-    metricType === 'revenue' ||
-    metricType === 'value'
+    type === 'SPEND' ||
+    type === 'REVENUE' ||
+    type === 'VALUE'
   ) {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      maximumFractionDigits: 0,
-    }).format(value)
+    return formatNaira(value)
   }
 
-  return new Intl.NumberFormat('en-NG', {
-    maximumFractionDigits: value < 100 ? 2 : 0,
-  }).format(value)
+  return formatCount(value)
 }
 
 function formatDate(isoDate: string): string {
@@ -61,7 +58,7 @@ function asList<T>(payload: unknown): T[] {
 
 export default function MetricsPage() {
   const { data: session } = useSession()
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+  const apiBase = resolveApiBaseUrl()
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
 
   const [metrics, setMetrics] = useState<MetricRecord[]>([])

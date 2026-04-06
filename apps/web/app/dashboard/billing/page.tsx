@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { canManageBilling, getSessionRole } from '@/lib/rbac'
+import { ChartContainer } from '@/components/ui/chart-container'
+import { MetricCard } from '@/components/ui/metric-card'
 import { resolveApiBaseUrl } from '@/lib/api-base-url'
+import { formatNaira } from '@/lib/formatters'
 
 type BillingPlan = {
   id: string
@@ -55,14 +58,6 @@ type Invoice = {
   currency: string
   status: string
   url?: string
-}
-
-function formatNgn(value: number): string {
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    maximumFractionDigits: 0,
-  }).format(value)
 }
 
 function formatDate(isoDate: string): string {
@@ -262,12 +257,13 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900">Billing</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Track plan, usage, and upgrade options for your organization.
+      <header className="rounded-3xl border border-slate-800/15 bg-gradient-to-r from-slate-900 via-cyan-900 to-teal-800 p-6 text-white shadow-md">
+        <p className="text-xs uppercase tracking-[0.14em] text-cyan-100">Billing and Plans</p>
+        <h1 className="mt-1 text-3xl font-bold font-display">Revenue Billing Center</h1>
+        <p className="mt-2 text-sm text-cyan-100">
+          Track plans, consumption, invoices, and checkout upgrades with Nigerian Naira as the primary currency.
         </p>
-        <p className="mt-2 text-xs text-slate-500">Role: {role}. Upgrades are limited to OWNER and ADMIN.</p>
+        <p className="mt-2 text-xs text-cyan-100">Role: {role}. Upgrades are limited to OWNER and ADMIN.</p>
       </header>
 
       {error ? (
@@ -277,40 +273,35 @@ export default function BillingPage() {
       ) : null}
 
       {loading ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
-          Loading billing information...
+        <section className="grid gap-4 md:grid-cols-3">
+          <MetricCard label="Current Plan" value="..." delta="Loading" loading trend="neutral" />
+          <MetricCard label="Current Spend" value="..." delta="Loading" loading trend="neutral" />
+          <MetricCard label="Next Billing" value="..." delta="Loading" loading trend="neutral" />
         </section>
       ) : (
         <>
-          {subscription ? (
-            <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-emerald-900">
-                Current Plan
-              </h2>
-              <p className="mt-2 text-sm text-emerald-800">
-                <strong>{subscription.planName}</strong> — Status:{' '}
-                <span className="font-semibold capitalize">
-                  {subscription.status}
-                </span>
-              </p>
-              {subscription.nextBillingDate ? (
-                <p className="mt-1 text-xs text-emerald-700">
-                  Next billing: {formatDate(subscription.nextBillingDate)}
-                </p>
-              ) : null}
-            </section>
-          ) : (
-            <section className="rounded-xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-              <p className="text-sm text-amber-900">
-                You are on a <strong>free trial</strong> (14 days).
-              </p>
-            </section>
-          )}
+          <section className="grid gap-4 md:grid-cols-3">
+            <MetricCard
+              label="Current Plan"
+              value={subscription ? subscription.planName : 'Trial'}
+              delta={subscription ? subscription.status : '14-day free trial'}
+              trend={subscription && subscription.status === 'PAST_DUE' ? 'down' : 'up'}
+            />
+            <MetricCard
+              label="Current Spend"
+              value={formatNaira(subscription?.amountPaid ?? 0)}
+              delta="Current billing period"
+              trend="neutral"
+            />
+            <MetricCard
+              label="Next Billing"
+              value={subscription?.nextBillingDate ? formatDate(subscription.nextBillingDate) : 'Not scheduled'}
+              delta="Billing schedule"
+              trend="neutral"
+            />
+          </section>
 
-          <section>
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Available Plans
-            </h2>
+          <ChartContainer title="Available Plans" description="Compare limits and choose your growth package">
             {usage ? (
               <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
                 <p>
@@ -333,13 +324,13 @@ export default function BillingPage() {
                 {plans.map((plan) => (
                   <article
                     key={plan.id}
-                    className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                    className="rounded-2xl border border-[var(--border-muted)] bg-white p-5 shadow-sm"
                   >
                     <h3 className="text-base font-semibold text-slate-900">
                       {plan.name}
                     </h3>
-                    <p className="mt-2 font-mono text-lg text-slate-900">
-                      {formatNgn(plan.priceNgn)}
+                    <p className="mt-2 font-display text-2xl text-slate-900">
+                      {formatNaira(plan.priceNgn)}
                       <span className="text-xs text-slate-500 font-normal">
                         /mo
                       </span>
@@ -365,7 +356,7 @@ export default function BillingPage() {
                         type="button"
                         onClick={() => void startCheckout(plan.id, 'paystack')}
                         disabled={checkoutLoading !== null || !canStartCheckout}
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
                       >
                         {checkoutLoading === `paystack:${plan.id}` ? 'Starting...' : 'Paystack'}
                       </button>
@@ -373,7 +364,7 @@ export default function BillingPage() {
                         type="button"
                         onClick={() => void startCheckout(plan.id, 'stripe')}
                         disabled={checkoutLoading !== null || !canStartCheckout}
-                        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                       >
                         {checkoutLoading === `stripe:${plan.id}` ? 'Starting...' : 'Stripe'}
                       </button>
@@ -382,13 +373,10 @@ export default function BillingPage() {
                 ))}
               </div>
             )}
-          </section>
+          </ChartContainer>
 
           {invoices.length > 0 ? (
-            <section>
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                Invoice History
-              </h2>
+            <ChartContainer title="Invoice History" description="Download invoices and monitor payment status over time">
               <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -406,7 +394,7 @@ export default function BillingPage() {
                           {formatDate(invoice.date)}
                         </td>
                         <td className="py-3 px-4 font-semibold">
-                          {formatNgn(invoice.amount)}
+                          {formatNaira(invoice.amount)}
                         </td>
                         <td className="py-3 px-4">
                           <span className="inline-flex rounded px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-700">
@@ -418,7 +406,7 @@ export default function BillingPage() {
                             type="button"
                             onClick={() => void downloadInvoicePdf(invoice.id)}
                             disabled={downloadingInvoiceId === invoice.id}
-                            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                           >
                             {downloadingInvoiceId === invoice.id ? 'Downloading...' : 'Download PDF'}
                           </button>
@@ -428,7 +416,7 @@ export default function BillingPage() {
                   </tbody>
                 </table>
               </div>
-            </section>
+            </ChartContainer>
           ) : null}
         </>
       )}

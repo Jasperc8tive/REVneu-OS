@@ -143,9 +143,10 @@ jobs:
           DATABASE_URL: postgresql://revneu:revneu@localhost:5432/revneu_db
 
   lighthouse-web:
-    name: Lighthouse (Web)
+    name: Lighthouse Gate (Web)
     runs-on: ubuntu-latest
     needs: [build]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -165,6 +166,7 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:4000
           NEXTAUTH_URL: http://localhost:3000
           NEXTAUTH_SECRET: ci-lighthouse-secret
+          CI: true
 
       - name: Run Lighthouse CI
         working-directory: apps/web
@@ -173,3 +175,12 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:4000
           NEXTAUTH_URL: http://localhost:3000
           NEXTAUTH_SECRET: ci-lighthouse-secret
+          CI: true
+
+      - name: Upload Lighthouse artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-web-report
+          path: apps/web/.lighthouseci
+          if-no-files-found: ignore

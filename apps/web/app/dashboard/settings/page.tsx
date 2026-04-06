@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { ChartContainer } from '@/components/ui/chart-container'
+import { MetricCard } from '@/components/ui/metric-card'
+import { resolveApiBaseUrl } from '@/lib/api-base-url'
 
 type Organization = {
   id: string
@@ -46,7 +49,7 @@ function formatDate(isoDate: string): string {
 
 export default function SettingsPage() {
   const { data: session } = useSession()
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+  const apiBase = resolveApiBaseUrl()
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
   const organizationId = (session?.user as { organizationId?: string } | undefined)?.organizationId
 
@@ -105,10 +108,11 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-slate-900">Organization Settings</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Manage company profile, timezone, and team roles.
+      <header className="rounded-3xl border border-slate-800/15 bg-gradient-to-r from-slate-900 via-cyan-900 to-teal-800 p-6 text-white shadow-md">
+        <p className="text-xs uppercase tracking-[0.14em] text-cyan-100">Organization Settings</p>
+        <h1 className="mt-1 text-3xl font-bold font-display">Admin Configuration Console</h1>
+        <p className="mt-2 text-sm text-cyan-100">
+          Manage company profile, default financial settings, timezone, and team role structure.
         </p>
       </header>
 
@@ -119,53 +123,22 @@ export default function SettingsPage() {
       ) : null}
 
       {loading ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
-          Loading settings...
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Organization" value="..." delta="Loading" loading trend="neutral" />
+          <MetricCard label="Currency" value="..." delta="Loading" loading trend="neutral" />
+          <MetricCard label="Timezone" value="..." delta="Loading" loading trend="neutral" />
+          <MetricCard label="Team Members" value="..." delta="Loading" loading trend="neutral" />
         </section>
       ) : (
         <>
-          <section className="grid gap-4 md:grid-cols-2">
-            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">
-                Organization Name
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                {org?.name || 'Not set'}
-              </p>
-            </article>
-
-            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">
-                Default Currency
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                {org?.defaultCurrency || 'NGN (Nigerian Naira)'}
-              </p>
-            </article>
-
-            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">
-                Default Timezone
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                {org?.defaultTimezone || 'Africa/Lagos'}
-              </p>
-            </article>
-
-            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">
-                Created
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                {org ? formatDate(org.createdAt) : 'Unknown'}
-              </p>
-            </article>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Organization" value={org?.name || 'Not set'} delta="Profile" trend="neutral" />
+            <MetricCard label="Default Currency" value={org?.defaultCurrency || 'NGN'} delta="Nigerian Naira" trend="neutral" />
+            <MetricCard label="Default Timezone" value={org?.defaultTimezone || 'Africa/Lagos'} delta="Operational timezone" trend="neutral" />
+            <MetricCard label="Team Members" value={`${users.length}`} delta="Active users" trend="up" />
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Team Members ({users.length})
-            </h2>
+          <ChartContainer title={`Team Members (${users.length})`} description={`Organization created ${org ? formatDate(org.createdAt) : 'Unknown'}`}>
             {users.length === 0 ? (
               <p className="mt-3 text-sm text-slate-600">
                 No team members yet.
@@ -204,7 +177,7 @@ export default function SettingsPage() {
                 </table>
               </div>
             )}
-          </section>
+          </ChartContainer>
         </>
       )}
     </div>

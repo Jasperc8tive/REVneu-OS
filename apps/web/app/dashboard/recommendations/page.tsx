@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { resolveApiBaseUrl } from '@/lib/api-base-url'
 
 type Recommendation = {
   id: string
@@ -61,7 +62,7 @@ function asList<T>(payload: unknown): T[] {
 
 export default function RecommendationsPage() {
   const { data: session } = useSession()
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+  const apiBase = resolveApiBaseUrl()
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
