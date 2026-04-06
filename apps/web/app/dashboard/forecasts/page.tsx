@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { resolveApiBaseUrl } from '@/lib/api-base-url'
+import { formatNaira } from '@/lib/formatters'
 
 type Forecast = {
   id: string
@@ -10,14 +12,6 @@ type Forecast = {
   confidenceScore: number
   generatedAt: string
   riskFlag?: string | null
-}
-
-function formatNgn(value: number): string {
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    maximumFractionDigits: 0,
-  }).format(value)
 }
 
 function asList<T>(payload: unknown): T[] {
@@ -35,7 +29,7 @@ function asList<T>(payload: unknown): T[] {
 
 export default function ForecastsPage() {
   const { data: session } = useSession()
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
+  const apiBase = resolveApiBaseUrl()
   const accessToken = (session?.user as { accessToken?: string } | undefined)?.accessToken
 
   const [forecasts, setForecasts] = useState<Forecast[]>([])
@@ -119,7 +113,7 @@ export default function ForecastsPage() {
                   {item.periodDays}-day window
                 </p>
                 <p className="mt-2 text-2xl font-bold text-slate-900 font-mono">
-                  {formatNgn(item.projectedRevenue)}
+                  {formatNaira(item.projectedRevenue)}
                 </p>
                 <p className="mt-2 text-xs text-slate-600">
                   Confidence: {(item.confidenceScore * 100).toFixed(0)}%

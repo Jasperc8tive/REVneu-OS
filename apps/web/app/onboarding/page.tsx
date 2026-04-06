@@ -6,11 +6,10 @@ import { useRouter } from 'next/navigation'
 import { canManageOnboarding, getSessionRole } from '@/lib/rbac'
 
 type OnboardingStep =
-  | 'org_profile'
-  | 'invite_team'
   | 'connect_integrations'
-  | 'run_agents'
-  | 'review_recommendations'
+  | 'import_marketing_data'
+  | 'import_sales_data'
+  | 'generate_first_insights'
 
 type OnboardingProgress = {
   currentStep: OnboardingStep
@@ -22,35 +21,35 @@ const STEPS: Array<{
   key: OnboardingStep
   label: string
   description: string
+  targetMinutes: string
 }> = [
   {
-    key: 'org_profile',
-    label: 'Create organization profile',
-    description:
-      'Set up your company name, timezone, and currency preferences.',
-  },
-  {
-    key: 'invite_team',
-    label: 'Invite your team',
-    description: 'Add team members with appropriate roles.',
-  },
-  {
     key: 'connect_integrations',
-    label: 'Connect integrations',
+    label: 'Step 1 - Connect integrations',
     description:
-      'Link GA4, Meta Ads, Paystack, and other data sources.',
+      'Link Meta Ads, Google Ads, Paystack, Stripe, and GA4.',
+    targetMinutes: '1 min',
   },
   {
-    key: 'run_agents',
-    label: 'Run all 7 agents',
+    key: 'import_marketing_data',
+    label: 'Step 2 - Import marketing data',
     description:
-      'Execute the AI agents to generate first recommendations.',
+      'Pull campaign, spend, and conversion metrics into Revenue Growth OS.',
+    targetMinutes: '1 min',
   },
   {
-    key: 'review_recommendations',
-    label: 'Review recommendations and set actions',
+    key: 'import_sales_data',
+    label: 'Step 3 - Import sales data',
     description:
-      'Inspect AI insights and plan your revenue optimization actions.',
+      'Bring in opportunities, won deals, and customer lifecycle events.',
+    targetMinutes: '1 min',
+  },
+  {
+    key: 'generate_first_insights',
+    label: 'Step 4 - Generate first insights',
+    description:
+      'Run AI Growth Agents and review your first actionable recommendations.',
+    targetMinutes: '2 min',
   },
 ]
 
@@ -108,11 +107,7 @@ export default function OnboardingPage() {
         }
       } catch {
         // If endpoint doesn't exist yet, show all steps incomplete
-        setProgress({
-          currentStep: STEPS[0].key,
-          completedSteps: [],
-          progressPercent: 0,
-        })
+        setProgress({ currentStep: STEPS[0].key, completedSteps: [], progressPercent: 0 })
       } finally {
         setLoading(false)
       }
@@ -163,8 +158,8 @@ export default function OnboardingPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10">
-        <section className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm text-center">
+      <main className="min-h-screen bg-transparent px-4 py-10">
+        <section className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm text-center">
           <p className="text-slate-600">Loading onboarding...</p>
         </section>
       </main>
@@ -173,8 +168,8 @@ export default function OnboardingPage() {
 
   if (!progress) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10">
-        <section className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <main className="min-h-screen bg-transparent px-4 py-10">
+        <section className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <p className="text-sm text-slate-600">{error || 'Unable to load onboarding.'}</p>
         </section>
       </main>
@@ -182,16 +177,14 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10">
-      <section className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+    <main className="min-h-screen bg-transparent px-4 py-10">
+      <section className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Onboarding Wizard
-            </h1>
+            <p className="text-xs uppercase tracking-[0.14em] text-slate-500">5-minute setup</p>
+            <h1 className="text-3xl font-bold font-display text-slate-900">Onboarding Command Flow</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Complete the setup checklist to unlock the full Growth Control
-              Center experience.
+              Complete these four steps to activate Growth Control Center in under 5 minutes.
             </p>
             <p className="mt-2 text-xs text-slate-500">Role: {role}. Step updates require OWNER, ADMIN, or ANALYST.</p>
           </div>
@@ -263,6 +256,7 @@ export default function OnboardingPage() {
                     >
                       {step.description}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">Estimated time: {step.targetMinutes}</p>
                     {!isCompleted && (
                       <button
                         type="button"

@@ -15,8 +15,13 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        sans: ['var(--font-ibm-plex)', 'sans-serif'],
+        display: ['var(--font-space-grotesk)', 'sans-serif'],
+        mono: ['var(--font-space-grotesk)', 'monospace'],
+      },
+      spacing: {
+        18: '4.5rem',
+        22: '5.5rem',
       },
     },
   },
